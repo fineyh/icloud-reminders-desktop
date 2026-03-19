@@ -1,0 +1,121 @@
+/* Mini window styles */
+.mini-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 8px;
+  -webkit-app-region: drag;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.mini-titlebar-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mini-titlebar-buttons {
+  display: flex;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.mini-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.mini-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Mini reminders list */
+.mini-content {
+  height: calc(100vh - 28px);
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.mini-reminder {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  gap: 8px;
+  transition: background 0.1s;
+}
+
+.mini-reminder:hover {
+  background: var(--bg-hover);
+}
+
+.mini-checkbox {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.mini-title {
+  font-size: 13px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.mini-due {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mini-due.overdue {
+  color: var(--danger);
+}
+
+.mini-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Login prompt in mini window */
+.mini-login-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  gap: 8px;
+}

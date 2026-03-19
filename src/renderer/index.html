@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iCloud 提醒事项</title>
+  <link rel="stylesheet" href="css/common.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <!-- Title Bar -->
+  <div class="titlebar">
+    <span class="titlebar-title">iCloud 提醒事项</span>
+    <div class="titlebar-buttons">
+      <button class="titlebar-btn" id="btn-close" title="关闭">&#x2715;</button>
+    </div>
+  </div>
+
+  <div class="panel-content" style="position: relative;">
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Login View -->
+    <section class="view" id="login-view">
+      <div class="login-header">
+        <h2>登录 iCloud</h2>
+        <p>使用 Apple ID 查看您的提醒事项</p>
+      </div>
+      <form class="login-form" id="login-form">
+        <div class="input-group">
+          <label for="email">Apple ID（邮箱或手机号）</label>
+          <input type="text" id="email" placeholder="手机号 / example@icloud.com" autocomplete="username" required>
+        </div>
+        <div class="input-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" placeholder="输入密码" autocomplete="current-password" required>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="remember" checked>
+          <label for="remember">记住我</label>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-login">登录</button>
+        <div class="error-msg" id="login-error"></div>
+      </form>
+    </section>
+
+    <!-- 2FA View -->
+    <section class="view" id="twofa-view">
+      <div class="twofa-header">
+        <h2>双重认证</h2>
+        <p>请输入发送到您受信任设备上的验证码</p>
+      </div>
+      <div class="code-input-wrapper" id="code-inputs">
+        <input type="text" maxlength="1" data-index="0" inputmode="numeric">
+        <input type="text" maxlength="1" data-index="1" inputmode="numeric">
+        <input type="text" maxlength="1" data-index="2" inputmode="numeric">
+        <input type="text" maxlength="1" data-index="3" inputmode="numeric">
+        <input type="text" maxlength="1" data-index="4" inputmode="numeric">
+        <input type="text" maxlength="1" data-index="5" inputmode="numeric">
+      </div>
+      <button class="btn btn-primary" id="btn-verify">验证</button>
+      <div class="error-msg" id="twofa-error"></div>
+      <button class="btn btn-text" id="btn-back-login" style="margin-top: 12px;">返回登录</button>
+    </section>
+
+    <!-- Reminders View -->
+    <section class="view" id="reminders-view">
+      <div class="reminders-header">
+        <h3 id="current-list-title">提醒事项</h3>
+        <div class="header-actions">
+          <button class="header-btn" id="btn-refresh" title="刷新">&#x21BB;</button>
+          <button class="header-btn" id="btn-mini" title="迷你窗口">&#x1F4CC;</button>
+          <div style="position: relative;">
+            <button class="header-btn" id="btn-menu" title="菜单">&#x22EE;</button>
+            <div class="dropdown-menu" id="dropdown-menu">
+              <button class="dropdown-item danger" id="btn-logout">退出登录</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="list-tabs" id="list-tabs"></div>
+      <div class="reminders-list" id="reminders-list"></div>
+      <div class="completed-section" id="completed-section" style="display: none;">
+        <button class="completed-toggle" id="completed-toggle">
+          <span class="arrow">&#x25B6;</span>
+          <span>已完成 (<span id="completed-count">0</span>)</span>
+        </button>
+        <div class="completed-items" id="completed-items"></div>
+      </div>
+      <div class="status-bar">
+        <span id="last-updated">--</span>
+        <span id="item-count">--</span>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

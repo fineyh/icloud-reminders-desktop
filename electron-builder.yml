@@ -1,0 +1,19 @@
+appId: com.icloud.reminders
+productName: iCloud Reminders
+directories:
+  output: build
+files:
+  - src/main/**/*
+  - src/renderer/**/*
+extraResources:
+  - from: dist/backend/reminders-backend
+    to: backend
+    filter:
+      - "**/*"
+win:
+  target: nsis
+  icon: src/renderer/assets/app-icon.ico
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
