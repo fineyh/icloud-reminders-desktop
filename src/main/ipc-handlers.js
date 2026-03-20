@@ -1,6 +1,9 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
+const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
 const { toggleMiniWindow, getPanelWindow, getMiniWindow } = require('./windows');
+
+const store = new Store();
 
 function setupIpcHandlers() {
   const backendUrl = getBackendUrl();
@@ -65,6 +68,21 @@ function setupIpcHandlers() {
   ipcMain.handle('window:close-mini', async () => {
     const miniWin = getMiniWindow();
     if (miniWin) miniWin.hide();
+    return { ok: true };
+  });
+
+  // --- Settings ---
+  ipcMain.handle('settings:get', async () => {
+    const loginSettings = app.getLoginItemSettings();
+    return {
+      autoLaunch: loginSettings.openAtLogin,
+    };
+  });
+
+  ipcMain.handle('settings:set', async (_event, settings) => {
+    if (typeof settings.autoLaunch === 'boolean') {
+      app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
+    }
     return { ok: true };
   });
 }

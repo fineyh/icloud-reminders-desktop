@@ -11,6 +11,7 @@
     login: document.getElementById('login-view'),
     twofa: document.getElementById('twofa-view'),
     reminders: document.getElementById('reminders-view'),
+    settings: document.getElementById('settings-view'),
   };
   const loadingOverlay = document.getElementById('loading-overlay');
 
@@ -352,6 +353,22 @@
     currentList = null;
     stopAutoRefresh();
     showView('login');
+  });
+
+  // --- Settings ---
+  document.getElementById('btn-settings').addEventListener('click', async () => {
+    dropdownMenu.classList.remove('show');
+    showView('settings');
+    const settings = await window.api.settings.get();
+    document.getElementById('toggle-auto-launch').checked = settings.autoLaunch;
+  });
+
+  document.getElementById('btn-settings-back').addEventListener('click', () => {
+    showView('reminders');
+  });
+
+  document.getElementById('toggle-auto-launch').addEventListener('change', async (e) => {
+    await window.api.settings.set({ autoLaunch: e.target.checked });
   });
 
   // Close button

@@ -65,6 +65,26 @@
       <button class="btn btn-text" id="btn-back-login" style="margin-top: 12px;">返回登录</button>
     </section>
 
+    <!-- Settings View -->
+    <section class="view" id="settings-view">
+      <div class="settings-header">
+        <button class="settings-back-btn" id="btn-settings-back">&#x2190;</button>
+        <h3>设置</h3>
+      </div>
+      <div class="settings-body">
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">开机自启动</span>
+            <span class="settings-item-desc">登录 Windows 时自动启动应用</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-auto-launch">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
     <!-- Reminders View -->
     <section class="view" id="reminders-view">
       <div class="reminders-header">
@@ -75,6 +95,7 @@
           <div style="position: relative;">
             <button class="header-btn" id="btn-menu" title="菜单">&#x22EE;</button>
             <div class="dropdown-menu" id="dropdown-menu">
+              <button class="dropdown-item" id="btn-settings">设置</button>
               <button class="dropdown-item danger" id="btn-logout">退出登录</button>
             </div>
           </div>

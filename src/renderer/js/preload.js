@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('api', {
     closeMini: () => ipcRenderer.invoke('window:close-mini'),
     minimizeMini: () => ipcRenderer.invoke('window:minimize-mini'),
   },
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get'),
+    set: (settings) => ipcRenderer.invoke('settings:set', settings),
+  },
   on: (channel, callback) => {
     const validChannels = ['reminders:update', 'reminders:refresh'];
     if (validChannels.includes(channel)) {
