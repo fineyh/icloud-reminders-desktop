@@ -258,6 +258,11 @@
   font-weight: 500;
 }
 
+.reminder-flag {
+  font-size: 12px;
+  color: var(--warning);
+}
+
 /* Completed section */
 .completed-section {
   border-top: 1px solid var(--border);

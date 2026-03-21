@@ -61,6 +61,13 @@
       el.appendChild(checkbox);
       el.appendChild(title);
 
+      if (reminder.flagged) {
+        const flag = document.createElement('span');
+        flag.className = 'mini-flag';
+        flag.textContent = '\u2691';
+        el.appendChild(flag);
+      }
+
       if (reminder.due_date) {
         const due = document.createElement('span');
         due.className = 'mini-due';

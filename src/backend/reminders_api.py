@@ -278,6 +278,7 @@ def _fetch_cloudkit(api):
                     due_date_ts = _ck_field(rec, "DueDate")
                     priority = _ck_field(rec, "Priority", 0)
                     is_all_day = bool(_ck_field(rec, "DueDateIsAllDay", 0))
+                    flagged = bool(_ck_field(rec, "Flagged", 0))
 
                     items.append({
                         "title": title,
@@ -285,6 +286,7 @@ def _fetch_cloudkit(api):
                         "due_date": _ck_timestamp_to_datetime(due_date_ts, is_all_day),
                         "completed": bool(completed) or completion_date is not None,
                         "priority": priority or 0,
+                        "flagged": flagged,
                     })
 
                     # Log first reminder for debugging
@@ -314,6 +316,7 @@ def _fetch_legacy(api):
                 "due_date": due_date,
                 "completed": reminder.get("completedDate") is not None,
                 "priority": reminder.get("priority", 0),
+                "flagged": bool(reminder.get("flagged", False)),
             })
         result[collection_name] = items
     return result

@@ -240,27 +240,37 @@
     title.textContent = reminder.title;
     content.appendChild(title);
 
-    if (reminder.due_date) {
+    if (reminder.due_date || reminder.flagged) {
       const meta = document.createElement('div');
       meta.className = 'reminder-meta';
 
-      const due = document.createElement('span');
-      due.className = 'reminder-due';
+      if (reminder.due_date) {
+        const due = document.createElement('span');
+        due.className = 'reminder-due';
 
-      const dueDate = new Date(reminder.due_date);
-      const hasTime = reminder.due_date.includes('T');
-      const now = new Date();
+        const dueDate = new Date(reminder.due_date);
+        const hasTime = reminder.due_date.includes('T');
+        const now = new Date();
 
-      if (hasTime) {
-        if (dueDate < now && !isCompleted) due.classList.add('overdue');
-      } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (dueDate < today && !isCompleted) due.classList.add('overdue');
+        if (hasTime) {
+          if (dueDate < now && !isCompleted) due.classList.add('overdue');
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dueDate < today && !isCompleted) due.classList.add('overdue');
+        }
+
+        due.textContent = formatDate(reminder.due_date);
+        meta.appendChild(due);
       }
 
-      due.textContent = formatDate(reminder.due_date);
-      meta.appendChild(due);
+      if (reminder.flagged) {
+        const flag = document.createElement('span');
+        flag.className = 'reminder-flag';
+        flag.textContent = '\u2691';
+        meta.appendChild(flag);
+      }
+
       content.appendChild(meta);
     }
 
