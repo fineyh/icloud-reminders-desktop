@@ -194,14 +194,22 @@ def _parse_notes_document(record):
     return _parse_ck_document(record, "NotesDocument")
 
 
-def _ck_timestamp_to_date(ts):
-    """Convert a CloudKit timestamp (ms since epoch) to YYYY-MM-DD."""
+def _ck_timestamp_to_datetime(ts, is_all_day=False):
+    """Convert a CloudKit timestamp (ms since epoch) to date or datetime string.
+
+    Returns "YYYY-MM-DD" for all-day reminders, "YYYY-MM-DDTHH:MM" for timed ones.
+    """
     if ts is None:
         return None
     try:
         from datetime import datetime, timezone
-        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-        return dt.strftime("%Y-%m-%d")
+        # All-day check uses UTC (iCloud stores all-day as midnight UTC)
+        dt_utc = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        if is_all_day or (dt_utc.hour == 0 and dt_utc.minute == 0):
+            return dt_utc.strftime("%Y-%m-%d")
+        # Timed reminders use local time for correct display
+        dt_local = datetime.fromtimestamp(ts / 1000)
+        return dt_local.strftime("%Y-%m-%dT%H:%M")
     except (ValueError, TypeError, OSError):
         return None
 
@@ -269,11 +277,12 @@ def _fetch_cloudkit(api):
                     completion_date = _ck_field(rec, "CompletionDate")
                     due_date_ts = _ck_field(rec, "DueDate")
                     priority = _ck_field(rec, "Priority", 0)
+                    is_all_day = bool(_ck_field(rec, "DueDateIsAllDay", 0))
 
                     items.append({
                         "title": title,
                         "description": notes,
-                        "due_date": _ck_timestamp_to_date(due_date_ts),
+                        "due_date": _ck_timestamp_to_datetime(due_date_ts, is_all_day),
                         "completed": bool(completed) or completion_date is not None,
                         "priority": priority or 0,
                     })
@@ -316,8 +325,13 @@ def _format_due_date_legacy(reminder):
     if due:
         try:
             if isinstance(due, (list, tuple)) and len(due) >= 3:
-                return f"{due[0]:04d}-{due[1]:02d}-{due[2]:02d}"
+                date_str = f"{due[0]:04d}-{due[1]:02d}-{due[2]:02d}"
+                if len(due) >= 5 and (due[3] or due[4]):
+                    return f"{date_str}T{due[3]:02d}:{due[4]:02d}"
+                return date_str
             elif hasattr(due, "strftime"):
+                if due.hour or due.minute:
+                    return due.strftime("%Y-%m-%dT%H:%M")
                 return due.strftime("%Y-%m-%d")
         except (IndexError, ValueError, TypeError):
             pass
@@ -328,7 +342,12 @@ def _format_due_date_legacy(reminder):
             month = due_components.get("month")
             day = due_components.get("day")
             if year and month and day:
-                return f"{year:04d}-{month:02d}-{day:02d}"
+                hour = due_components.get("hour")
+                minute = due_components.get("minute")
+                date_str = f"{year:04d}-{month:02d}-{day:02d}"
+                if hour is not None and minute is not None and (hour or minute):
+                    return f"{date_str}T{hour:02d}:{minute:02d}"
+                return date_str
         except (ValueError, TypeError):
             pass
     return None

@@ -248,11 +248,15 @@
       due.className = 'reminder-due';
 
       const dueDate = new Date(reminder.due_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const hasTime = reminder.due_date.includes('T');
+      const now = new Date();
 
-      if (dueDate < today && !isCompleted) {
-        due.classList.add('overdue');
+      if (hasTime) {
+        if (dueDate < now && !isCompleted) due.classList.add('overdue');
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (dueDate < today && !isCompleted) due.classList.add('overdue');
       }
 
       due.textContent = formatDate(reminder.due_date);
@@ -267,6 +271,7 @@
 
   function formatDate(dateStr) {
     try {
+      const hasTime = dateStr.includes('T');
       const date = new Date(dateStr);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -275,15 +280,23 @@
       const dateOnly = new Date(date);
       dateOnly.setHours(0, 0, 0, 0);
 
-      if (dateOnly.getTime() === today.getTime()) return '今天';
-      if (dateOnly.getTime() === tomorrow.getTime()) return '明天';
+      let label;
+      if (dateOnly.getTime() === today.getTime()) label = '今天';
+      else if (dateOnly.getTime() === tomorrow.getTime()) label = '明天';
+      else {
+        const diff = Math.round((dateOnly - today) / 86400000);
+        if (diff === -1) label = '昨天';
+        else if (diff > 1 && diff <= 7) label = `${diff} 天后`;
+        else if (diff < -1 && diff >= -7) label = `${Math.abs(diff)} 天前`;
+        else label = `${date.getMonth() + 1}/${date.getDate()}`;
+      }
 
-      const diff = Math.round((dateOnly - today) / 86400000);
-      if (diff === -1) return '昨天';
-      if (diff > 1 && diff <= 7) return `${diff} 天后`;
-      if (diff < -1 && diff >= -7) return `${Math.abs(diff)} 天前`;
-
-      return `${date.getMonth() + 1}/${date.getDate()}`;
+      if (hasTime) {
+        const hh = date.getHours().toString().padStart(2, '0');
+        const mm = date.getMinutes().toString().padStart(2, '0');
+        return `${label} ${hh}:${mm}`;
+      }
+      return label;
     } catch {
       return dateStr;
     }

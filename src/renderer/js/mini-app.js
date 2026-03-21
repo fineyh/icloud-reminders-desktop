@@ -66,10 +66,14 @@
         due.className = 'mini-due';
 
         const dueDate = new Date(reminder.due_date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (dueDate < today) {
-          due.classList.add('overdue');
+        const hasTime = reminder.due_date.includes('T');
+
+        if (hasTime) {
+          if (dueDate < new Date()) due.classList.add('overdue');
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dueDate < today) due.classList.add('overdue');
         }
 
         due.textContent = formatDate(reminder.due_date);
@@ -82,6 +86,7 @@
 
   function formatDate(dateStr) {
     try {
+      const hasTime = dateStr.includes('T');
       const date = new Date(dateStr);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -89,11 +94,18 @@
       dateOnly.setHours(0, 0, 0, 0);
 
       const diff = Math.round((dateOnly - today) / 86400000);
-      if (diff === 0) return '今天';
-      if (diff === 1) return '明天';
-      if (diff === -1) return '昨天';
+      let label;
+      if (diff === 0) label = '今天';
+      else if (diff === 1) label = '明天';
+      else if (diff === -1) label = '昨天';
+      else label = `${date.getMonth() + 1}/${date.getDate()}`;
 
-      return `${date.getMonth() + 1}/${date.getDate()}`;
+      if (hasTime) {
+        const hh = date.getHours().toString().padStart(2, '0');
+        const mm = date.getMinutes().toString().padStart(2, '0');
+        return `${label} ${hh}:${mm}`;
+      }
+      return label;
     } catch {
       return dateStr;
     }
