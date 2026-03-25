@@ -4,7 +4,12 @@
   const miniEmpty = document.getElementById('mini-empty');
   const miniLoginPrompt = document.getElementById('mini-login-prompt');
 
-  // Close and minimize buttons
+  // Titlebar buttons
+  document.getElementById('btn-pin').addEventListener('click', async () => {
+    const result = await window.api.window.toggleMiniPin();
+    document.getElementById('btn-pin').classList.toggle('active', result.pinned);
+  });
+
   document.getElementById('btn-close').addEventListener('click', () => {
     window.api.window.closeMini();
   });

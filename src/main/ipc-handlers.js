@@ -1,7 +1,7 @@
 const { ipcMain, app } = require('electron');
 const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
-const { toggleMiniWindow, getPanelWindow, getMiniWindow } = require('./windows');
+const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow } = require('./windows');
 
 const store = new Store();
 
@@ -69,6 +69,16 @@ function setupIpcHandlers() {
     const miniWin = getMiniWindow();
     if (miniWin) miniWin.hide();
     return { ok: true };
+  });
+
+  ipcMain.handle('window:toggle-panel-pin', async () => {
+    const pinned = togglePanelAlwaysOnTop();
+    return { ok: true, pinned };
+  });
+
+  ipcMain.handle('window:toggle-mini-pin', async () => {
+    const pinned = toggleMiniAlwaysOnTop();
+    return { ok: true, pinned };
   });
 
   // --- Settings ---

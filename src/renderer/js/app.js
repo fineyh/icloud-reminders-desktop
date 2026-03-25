@@ -352,6 +352,11 @@
     showLoading(false);
   });
 
+  document.getElementById('btn-pin').addEventListener('click', async () => {
+    const result = await window.api.window.togglePanelPin();
+    document.getElementById('btn-pin').classList.toggle('active', result.pinned);
+  });
+
   document.getElementById('btn-mini').addEventListener('click', () => {
     window.api.window.toggleMini();
   });

@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   window: {
     toggleMini: () => ipcRenderer.invoke('window:toggle-mini'),
+    togglePanelPin: () => ipcRenderer.invoke('window:toggle-panel-pin'),
+    toggleMiniPin: () => ipcRenderer.invoke('window:toggle-mini-pin'),
     close: () => ipcRenderer.invoke('window:close'),
     closeMini: () => ipcRenderer.invoke('window:close-mini'),
     minimizeMini: () => ipcRenderer.invoke('window:minimize-mini'),

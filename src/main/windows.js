@@ -28,8 +28,7 @@ function createPanelWindow() {
   panelWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
   panelWindow.on('blur', () => {
-    // Only auto-hide if mini window is not shown
-    if (!miniWindow || !miniWindow.isVisible()) {
+    if (!panelWindow.isAlwaysOnTop()) {
       panelWindow.hide();
     }
   });
@@ -55,7 +54,7 @@ function createMiniWindow() {
     x: savedBounds.x,
     y: savedBounds.y,
     frame: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     resizable: true,
     minimizable: true,
     skipTaskbar: false,
@@ -71,8 +70,6 @@ function createMiniWindow() {
       nodeIntegration: false,
     },
   });
-
-  miniWindow.setAlwaysOnTop(true, 'floating');
 
   miniWindow.loadFile(path.join(__dirname, '..', 'renderer', 'mini.html'));
 
@@ -143,6 +140,20 @@ function toggleMiniWindow() {
   }
 }
 
+function togglePanelAlwaysOnTop() {
+  if (!panelWindow) return false;
+  const pinned = !panelWindow.isAlwaysOnTop();
+  panelWindow.setAlwaysOnTop(pinned, 'floating');
+  return pinned;
+}
+
+function toggleMiniAlwaysOnTop() {
+  if (!miniWindow) return false;
+  const pinned = !miniWindow.isAlwaysOnTop();
+  miniWindow.setAlwaysOnTop(pinned, 'floating');
+  return pinned;
+}
+
 function getPanelWindow() {
   return panelWindow;
 }
@@ -157,6 +168,8 @@ module.exports = {
   showPanelNearTray,
   togglePanel,
   toggleMiniWindow,
+  togglePanelAlwaysOnTop,
+  toggleMiniAlwaysOnTop,
   getPanelWindow,
   getMiniWindow,
 };
