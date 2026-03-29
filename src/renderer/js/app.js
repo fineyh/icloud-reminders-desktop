@@ -7,6 +7,62 @@
   let showCompleted = false;
   let searchQuery = '';
 
+  // Smart Lists definition
+  const SMART_LISTS = [
+    { id: '@today', label: '今天', icon: '\u2606' },
+    { id: '@upcoming', label: '即将到期', icon: '\u29D6' },
+    { id: '@flagged', label: '已标旗', icon: '\u2691' },
+  ];
+
+  function isSmartList(listId) {
+    return listId && listId.startsWith('@');
+  }
+
+  function getAllItems() {
+    if (!remindersData) return [];
+    const all = [];
+    Object.values(remindersData).forEach((items) => {
+      items.forEach((item) => all.push(item));
+    });
+    return all;
+  }
+
+  function getSmartListItems(listId) {
+    const allItems = getAllItems();
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    switch (listId) {
+      case '@today':
+        return allItems.filter((item) => {
+          if (!item.due_date) return false;
+          const d = new Date(item.due_date);
+          return d <= todayEnd; // due today or already overdue
+        });
+      case '@upcoming': {
+        const sevenDays = new Date(todayStart);
+        sevenDays.setDate(sevenDays.getDate() + 7);
+        return allItems.filter((item) => {
+          if (item.completed || !item.due_date) return false;
+          const d = new Date(item.due_date);
+          return d > todayEnd && d <= sevenDays;
+        });
+      }
+      case '@flagged':
+        return allItems.filter((item) => item.flagged);
+      default:
+        return [];
+    }
+  }
+
+  function getSmartListDisplayName(listId) {
+    const sl = SMART_LISTS.find((s) => s.id === listId);
+    return sl ? sl.label : listId;
+  }
+
   // DOM elements
   const views = {
     login: document.getElementById('login-view'),
@@ -154,7 +210,7 @@
       }
       remindersData = result.lists || {};
       const listNames = Object.keys(remindersData);
-      if (listNames.length > 0 && (!currentList || !remindersData[currentList])) {
+      if (listNames.length > 0 && (!currentList || (!isSmartList(currentList) && !remindersData[currentList]))) {
         currentList = listNames[0];
       }
       renderListTabs();
@@ -166,21 +222,33 @@
   }
 
   function renderListTabs() {
+    const smartContainer = document.getElementById('smart-tabs');
     const tabsContainer = document.getElementById('list-tabs');
+    smartContainer.innerHTML = '';
     tabsContainer.innerHTML = '';
     if (!remindersData) return;
 
-    Object.keys(remindersData).forEach((name) => {
+    function createTab(container, id, label, isSmartTab) {
       const tab = document.createElement('button');
-      tab.className = 'list-tab' + (name === currentList ? ' active' : '');
-      tab.textContent = name;
+      tab.className = 'list-tab' + (id === currentList ? ' active' : '') + (isSmartTab ? ' smart' : '');
+      tab.textContent = label;
       tab.addEventListener('click', () => {
-        currentList = name;
+        currentList = id;
         renderListTabs();
         renderReminders();
         updateStatusBar();
       });
-      tabsContainer.appendChild(tab);
+      container.appendChild(tab);
+    }
+
+    // Smart lists — separate row
+    SMART_LISTS.forEach((sl) => {
+      createTab(smartContainer, sl.id, sl.icon + ' ' + sl.label, true);
+    });
+
+    // Regular lists
+    Object.keys(remindersData).forEach((name) => {
+      createTab(tabsContainer, name, name, false);
     });
   }
 
@@ -199,6 +267,8 @@
           }
         });
       });
+    } else if (isSmartList(currentList)) {
+      items = getSmartListItems(currentList);
     } else if (currentList && remindersData[currentList]) {
       items = remindersData[currentList];
     } else {
@@ -249,7 +319,8 @@
       completedSection.style.display = 'none';
     }
 
-    document.getElementById('current-list-title').textContent = searchQuery ? '搜索结果' : currentList;
+    const displayName = searchQuery ? '搜索结果' : (isSmartList(currentList) ? getSmartListDisplayName(currentList) : currentList);
+    document.getElementById('current-list-title').textContent = displayName;
   }
 
   async function toggleReminder(reminder, isCompleted) {
@@ -373,8 +444,15 @@
     const now = new Date();
     lastUpdated.textContent = `更新于 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-    if (remindersData && currentList && remindersData[currentList]) {
-      const pending = remindersData[currentList].filter((r) => !r.completed).length;
+    if (remindersData && currentList) {
+      let pending;
+      if (isSmartList(currentList)) {
+        pending = getFilteredItems().filter((r) => !r.completed).length;
+      } else if (remindersData[currentList]) {
+        pending = remindersData[currentList].filter((r) => !r.completed).length;
+      } else {
+        pending = 0;
+      }
       itemCount.textContent = `${pending} 项待办`;
     }
   }
@@ -386,7 +464,8 @@
   searchInput.addEventListener('input', (e) => {
     searchQuery = e.target.value.trim().toLowerCase();
     searchClear.style.display = searchQuery ? 'flex' : 'none';
-    // In search mode, hide list tabs and search across all lists
+    // In search mode, hide both tab rows and search across all lists
+    document.getElementById('smart-tabs').style.display = searchQuery ? 'none' : '';
     document.getElementById('list-tabs').style.display = searchQuery ? 'none' : 'flex';
     renderReminders();
     updateStatusBar();
@@ -396,6 +475,7 @@
     searchInput.value = '';
     searchQuery = '';
     searchClear.style.display = 'none';
+    document.getElementById('smart-tabs').style.display = '';
     document.getElementById('list-tabs').style.display = 'flex';
     renderReminders();
     updateStatusBar();

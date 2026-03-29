@@ -227,6 +227,49 @@
   color: #fff;
 }
 
+/* Smart tabs row */
+.smart-tabs {
+  display: flex;
+  padding: 6px 16px;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.smart-tabs .list-tab.smart {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 4px;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.smart-tabs .list-tab.smart:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: var(--border);
+}
+
+.smart-tabs .list-tab.smart:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.smart-tabs .list-tab.smart.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: transparent;
+}
+
 /* Reminder items */
 .reminders-list {
   flex: 1;
