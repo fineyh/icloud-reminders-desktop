@@ -58,6 +58,21 @@
       const checkbox = document.createElement('div');
       checkbox.className = 'mini-checkbox';
 
+      if (reminder.recordName) {
+        checkbox.addEventListener('click', async () => {
+          try {
+            const result = await window.api.reminders.complete(reminder.recordName, reminder.recordChangeTag);
+            if (result.status === 'ok') {
+              // Reload from server to get fresh data
+              const data = await window.api.reminders.fetch();
+              renderReminders(data);
+            }
+          } catch (err) {
+            console.error('Failed to complete reminder:', err);
+          }
+        });
+      }
+
       const title = document.createElement('span');
       title.className = 'mini-title';
       title.textContent = reminder.title;
@@ -128,8 +143,35 @@
     renderReminders(data);
   });
 
+  // --- Dark Mode ---
+  async function applyTheme(mode) {
+    let theme;
+    if (mode === 'dark') {
+      theme = 'dark';
+    } else if (mode === 'light') {
+      theme = 'light';
+    } else {
+      const systemTheme = await window.api.settings.getSystemTheme();
+      theme = systemTheme;
+    }
+    document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+  }
+
+  window.api.on('theme-changed', async () => {
+    const settings = await window.api.settings.get();
+    if ((settings.darkMode || 'system') === 'system') {
+      await applyTheme('system');
+    }
+  });
+
   // Initial load
   async function init() {
+    // Apply theme first
+    try {
+      const settings = await window.api.settings.get();
+      await applyTheme(settings.darkMode || 'system');
+    } catch {}
+
     try {
       const status = await window.api.auth.status();
       if (status.status === 'authenticated') {

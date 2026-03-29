@@ -1,6 +1,6 @@
 {
   "name": "icloud-reminders",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "iCloud Reminders desktop widget for Windows",
   "main": "src/main/main.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "dev": "scripts/dev.bat",
     "build": "electron-builder --win"
   },
-  "author": "",
+  "author": "fineyh",
   "license": "MIT",
   "dependencies": {
     "electron-store": "^8.2.0"
@@ -17,8 +17,20 @@
     "appId": "com.icloud.reminders",
     "productName": "iCloud Reminders",
     "win": {
-      "target": "dir",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
+      "installerSidebar": null
     },
     "files": [
       "src/**/*",

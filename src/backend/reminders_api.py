@@ -1,6 +1,6 @@
 import json
 import logging
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from auth import get_api
 
 reminders_bp = Blueprint("reminders", __name__)
@@ -284,9 +284,11 @@ def _fetch_cloudkit(api):
                         "title": title,
                         "description": notes,
                         "due_date": _ck_timestamp_to_datetime(due_date_ts, is_all_day),
-                        "completed": bool(completed) or completion_date is not None,
+                        "completed": bool(completed),
                         "priority": priority or 0,
                         "flagged": flagged,
+                        "recordName": rec.get("recordName", ""),
+                        "recordChangeTag": rec.get("recordChangeTag", ""),
                     })
 
                     # Log first reminder for debugging
@@ -354,6 +356,202 @@ def _format_due_date_legacy(reminder):
         except (ValueError, TypeError):
             pass
     return None
+
+
+def _update_resolution_token_map(current_record, changed_field_keys):
+    """Update the ResolutionTokenMap CRDT tokens for changed fields.
+
+    Apple Reminders uses ResolutionTokenMap for CRDT-based sync resolution.
+    When a field changes, its entry in the map must be updated with an
+    incremented counter and the current Apple timestamp, otherwise other
+    Apple devices will ignore the change.
+    """
+    import uuid
+    import time
+
+    fields = current_record.get("fields", {})
+    rtm_field = fields.get("ResolutionTokenMap")
+    if not rtm_field:
+        return None
+
+    rtm_str = rtm_field.get("value", "{}")
+    try:
+        rtm = json.loads(rtm_str)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    token_map = rtm.get("map", {})
+
+    # Apple timestamp = Unix timestamp - 978307200 (seconds since 2001-01-01)
+    apple_now = time.time() - 978307200
+    replica_id = str(uuid.uuid4()).upper()
+
+    # Map CloudKit field names to ResolutionTokenMap keys
+    field_to_token_key = {
+        "Completed": "completed",
+        "CompletionDate": "completionDate",
+        "LastModifiedDate": "lastModifiedDate",
+    }
+
+    for field_name in changed_field_keys:
+        token_key = field_to_token_key.get(field_name, field_name)
+        if token_key in token_map:
+            token_map[token_key]["counter"] = token_map[token_key].get("counter", 0) + 1
+            token_map[token_key]["modificationTime"] = apple_now
+            token_map[token_key]["replicaID"] = replica_id
+        else:
+            token_map[token_key] = {
+                "counter": 1,
+                "modificationTime": apple_now,
+                "replicaID": replica_id,
+            }
+
+    # Always bump lastModifiedDate token
+    if "lastModifiedDate" in token_map and "LastModifiedDate" not in changed_field_keys:
+        token_map["lastModifiedDate"]["counter"] = token_map["lastModifiedDate"].get("counter", 0) + 1
+        token_map["lastModifiedDate"]["modificationTime"] = apple_now
+        token_map["lastModifiedDate"]["replicaID"] = replica_id
+
+    rtm["map"] = token_map
+    return json.dumps(rtm)
+
+
+def _ck_modify(api, record_name, record_type, fields):
+    """Modify a CloudKit record's fields.
+
+    Always fetches the latest recordChangeTag first to avoid conflicts.
+    Also updates ResolutionTokenMap for proper Apple device sync.
+    """
+    base = _ck_base_url(api)
+    if not base:
+        return None
+
+    # Step 1: Lookup the record to get the latest recordChangeTag
+    _log.info(f"[CK_MODIFY] Looking up {record_name} to get latest recordChangeTag")
+    lookup_resp = _ck_lookup(api, [record_name])
+    if not lookup_resp:
+        _log.error("[CK_MODIFY] Lookup failed")
+        return None
+
+    lookup_records = lookup_resp.get("records", [])
+    if not lookup_records:
+        _log.error(f"[CK_MODIFY] Record {record_name} not found in lookup")
+        return None
+
+    current_record = lookup_records[0]
+    if "serverErrorCode" in current_record:
+        _log.error(f"[CK_MODIFY] Lookup error: {current_record}")
+        return None
+
+    record_change_tag = current_record.get("recordChangeTag")
+    _log.info(f"[CK_MODIFY] Got recordChangeTag: {record_change_tag}")
+
+    # Step 2: Update ResolutionTokenMap for changed fields
+    updated_rtm = _update_resolution_token_map(current_record, list(fields.keys()))
+    if updated_rtm:
+        fields["ResolutionTokenMap"] = {"value": updated_rtm, "type": "STRING"}
+        _log.info(f"[CK_MODIFY] Updated ResolutionTokenMap for fields: {list(fields.keys())}")
+
+    # Step 3: Modify with the latest recordChangeTag
+    record = {
+        "recordName": record_name,
+        "recordType": record_type,
+        "fields": fields,
+    }
+    if record_change_tag:
+        record["recordChangeTag"] = record_change_tag
+
+    body = {
+        "operations": [
+            {
+                "operationType": "update",
+                "record": record,
+            }
+        ],
+        "zoneID": {"zoneName": _CK_ZONE},
+    }
+
+    _log.info(f"[CK_MODIFY] Sending modify request for {record_name}")
+    resp = api.session.post(f"{base}/records/modify", params=api.params, json=body)
+    _log.info(f"[CK_MODIFY] HTTP status: {resp.status_code}")
+    resp.raise_for_status()
+    result = resp.json()
+
+    # Step 4: Check for record-level errors in the response
+    result_records = result.get("records", [])
+    for rec in result_records:
+        if "serverErrorCode" in rec:
+            error_code = rec.get("serverErrorCode")
+            reason = rec.get("reason", "unknown")
+            _log.error(f"[CK_MODIFY] Server error: {error_code} - {reason}")
+            return {"error": f"CloudKit error: {error_code} - {reason}"}
+        _log.info(f"[CK_MODIFY] Success. New recordChangeTag: {rec.get('recordChangeTag')}")
+
+    return result
+
+
+@reminders_bp.route("/api/reminders/complete", methods=["POST"])
+def complete_reminder():
+    """Mark a reminder as completed via CloudKit."""
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or "recordName" not in data:
+        return jsonify({"error": "recordName is required"}), 400
+
+    record_name = data["recordName"]
+
+    try:
+        from datetime import datetime, timezone
+        now_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+
+        fields = {
+            "Completed": {"value": 1, "type": "NUMBER_INT64"},
+            "CompletionDate": {"value": now_ms, "type": "TIMESTAMP"},
+        }
+
+        result = _ck_modify(api, record_name, "Reminder", fields)
+        if result is None:
+            return jsonify({"error": "CloudKit not available"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify(result), 500
+
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        _log.error(f"[COMPLETE] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@reminders_bp.route("/api/reminders/uncomplete", methods=["POST"])
+def uncomplete_reminder():
+    """Mark a completed reminder as incomplete via CloudKit."""
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or "recordName" not in data:
+        return jsonify({"error": "recordName is required"}), 400
+
+    record_name = data["recordName"]
+
+    try:
+        fields = {
+            "Completed": {"value": 0, "type": "NUMBER_INT64"},
+        }
+
+        result = _ck_modify(api, record_name, "Reminder", fields)
+        if result is None:
+            return jsonify({"error": "CloudKit not available"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify(result), 500
+
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        _log.error(f"[UNCOMPLETE] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @reminders_bp.route("/api/reminders", methods=["GET"])

@@ -1,8 +1,15 @@
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow, screen, nativeTheme } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 
 const store = new Store();
+
+function getBackgroundColor() {
+  const mode = store.get('darkMode', 'system');
+  if (mode === 'dark') return '#1c1c1e';
+  if (mode === 'light') return '#f5f5f7';
+  return nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#f5f5f7';
+}
 
 let panelWindow = null;
 let miniWindow = null;
@@ -16,7 +23,7 @@ function createPanelWindow() {
     skipTaskbar: true,
     show: false,
     transparent: false,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: getBackgroundColor(),
     icon: path.join(__dirname, '..', 'renderer', 'assets', 'app-icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '..', 'renderer', 'js', 'preload.js'),
@@ -60,7 +67,7 @@ function createMiniWindow() {
     skipTaskbar: false,
     show: false,
     transparent: false,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: getBackgroundColor(),
     minWidth: 200,
     minHeight: 200,
     icon: path.join(__dirname, '..', 'renderer', 'assets', 'app-icon.ico'),

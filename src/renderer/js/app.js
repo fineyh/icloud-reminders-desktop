@@ -5,6 +5,7 @@
   let currentList = null;
   let refreshTimer = null;
   let showCompleted = false;
+  let searchQuery = '';
 
   // DOM elements
   const views = {
@@ -183,6 +184,29 @@
     });
   }
 
+  function getFilteredItems() {
+    if (!remindersData) return [];
+
+    let items;
+    if (searchQuery) {
+      // Search across all lists
+      items = [];
+      Object.values(remindersData).forEach((listItems) => {
+        listItems.forEach((item) => {
+          if (item.title.toLowerCase().includes(searchQuery) ||
+              (item.description && item.description.toLowerCase().includes(searchQuery))) {
+            items.push(item);
+          }
+        });
+      });
+    } else if (currentList && remindersData[currentList]) {
+      items = remindersData[currentList];
+    } else {
+      items = [];
+    }
+    return items;
+  }
+
   function renderReminders() {
     const listContainer = document.getElementById('reminders-list');
     const completedSection = document.getElementById('completed-section');
@@ -192,13 +216,16 @@
     listContainer.innerHTML = '';
     completedItems.innerHTML = '';
 
-    if (!remindersData || !currentList || !remindersData[currentList]) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="icon">&#x1F4CB;</div><p>没有提醒事项</p></div>';
+    const items = getFilteredItems();
+
+    if (items.length === 0) {
+      const msg = searchQuery ? '没有匹配的提醒事项' : '没有提醒事项';
+      const icon = searchQuery ? '&#x1F50D;' : '&#x1F4CB;';
+      listContainer.innerHTML = `<div class="empty-state"><div class="icon">${icon}</div><p>${msg}</p></div>`;
       completedSection.style.display = 'none';
       return;
     }
 
-    const items = remindersData[currentList];
     const pending = items.filter((r) => !r.completed);
     const completed = items.filter((r) => r.completed);
 
@@ -222,7 +249,30 @@
       completedSection.style.display = 'none';
     }
 
-    document.getElementById('current-list-title').textContent = currentList;
+    document.getElementById('current-list-title').textContent = searchQuery ? '搜索结果' : currentList;
+  }
+
+  async function toggleReminder(reminder, isCompleted) {
+    if (!reminder.recordName) return;
+    try {
+      let result;
+      if (isCompleted) {
+        result = await window.api.reminders.uncomplete(reminder.recordName, reminder.recordChangeTag);
+      } else {
+        result = await window.api.reminders.complete(reminder.recordName, reminder.recordChangeTag);
+      }
+      console.log('[TOGGLE] result:', JSON.stringify(result));
+      if (result.error) {
+        console.error('[TOGGLE] Server error:', result.error);
+        return;
+      }
+      if (result.status === 'ok') {
+        // Reload from server to get fresh data (including updated recordChangeTag)
+        await loadReminders();
+      }
+    } catch (err) {
+      console.error('Failed to toggle reminder:', err);
+    }
   }
 
   function createReminderElement(reminder, isCompleted) {
@@ -231,6 +281,10 @@
 
     const checkbox = document.createElement('div');
     checkbox.className = 'reminder-checkbox' + (isCompleted ? ' completed' : '');
+
+    if (reminder.recordName) {
+      checkbox.addEventListener('click', () => toggleReminder(reminder, isCompleted));
+    }
 
     const content = document.createElement('div');
     content.className = 'reminder-content';
@@ -325,6 +379,28 @@
     }
   }
 
+  // --- Search ---
+  const searchInput = document.getElementById('search-input');
+  const searchClear = document.getElementById('search-clear');
+
+  searchInput.addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim().toLowerCase();
+    searchClear.style.display = searchQuery ? 'flex' : 'none';
+    // In search mode, hide list tabs and search across all lists
+    document.getElementById('list-tabs').style.display = searchQuery ? 'none' : 'flex';
+    renderReminders();
+    updateStatusBar();
+  });
+
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    searchQuery = '';
+    searchClear.style.display = 'none';
+    document.getElementById('list-tabs').style.display = 'flex';
+    renderReminders();
+    updateStatusBar();
+  });
+
   // Completed section toggle
   document.getElementById('completed-toggle').addEventListener('click', function () {
     showCompleted = !showCompleted;
@@ -389,6 +465,11 @@
     showView('settings');
     const settings = await window.api.settings.get();
     document.getElementById('toggle-auto-launch').checked = settings.autoLaunch;
+    document.getElementById('toggle-notifications').checked = settings.notificationsEnabled !== false;
+    document.getElementById('toggle-daily-summary').checked = settings.dailySummaryEnabled !== false;
+    // Dark mode: set select value
+    const darkModeSelect = document.getElementById('select-dark-mode');
+    if (darkModeSelect) darkModeSelect.value = settings.darkMode || 'system';
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -397,6 +478,14 @@
 
   document.getElementById('toggle-auto-launch').addEventListener('change', async (e) => {
     await window.api.settings.set({ autoLaunch: e.target.checked });
+  });
+
+  document.getElementById('toggle-notifications').addEventListener('change', async (e) => {
+    await window.api.settings.set({ notificationsEnabled: e.target.checked });
+  });
+
+  document.getElementById('toggle-daily-summary').addEventListener('change', async (e) => {
+    await window.api.settings.set({ dailySummaryEnabled: e.target.checked });
   });
 
   // Close button
@@ -409,8 +498,42 @@
     await loadReminders();
   });
 
+  // --- Dark Mode ---
+  async function applyTheme(mode) {
+    let theme;
+    if (mode === 'dark') {
+      theme = 'dark';
+    } else if (mode === 'light') {
+      theme = 'light';
+    } else {
+      // system
+      const systemTheme = await window.api.settings.getSystemTheme();
+      theme = systemTheme;
+    }
+    document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+  }
+
+  async function initTheme() {
+    const settings = await window.api.settings.get();
+    await applyTheme(settings.darkMode || 'system');
+  }
+
+  document.getElementById('select-dark-mode').addEventListener('change', async (e) => {
+    const mode = e.target.value;
+    await window.api.settings.set({ darkMode: mode });
+    await applyTheme(mode);
+  });
+
+  window.api.on('theme-changed', async () => {
+    const settings = await window.api.settings.get();
+    if ((settings.darkMode || 'system') === 'system') {
+      await applyTheme('system');
+    }
+  });
+
   // --- Init ---
   async function init() {
+    await initTheme();
     showLoading(true);
     try {
       const result = await window.api.auth.status();

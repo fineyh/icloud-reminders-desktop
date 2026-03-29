@@ -82,6 +82,37 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">到期提醒通知</span>
+            <span class="settings-item-desc">提醒事项到期时弹出桌面通知</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-notifications">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">今日待办汇总</span>
+            <span class="settings-item-desc">每天首次加载时通知当天到期的事项</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-daily-summary">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">外观模式</span>
+            <span class="settings-item-desc">切换亮色 / 暗色主题</span>
+          </div>
+          <select class="theme-select" id="select-dark-mode">
+            <option value="system">跟随系统</option>
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select>
+        </div>
       </div>
     </section>
 
@@ -101,6 +132,10 @@
             </div>
           </div>
         </div>
+      </div>
+      <div class="search-bar" id="search-bar">
+        <input type="text" id="search-input" placeholder="搜索提醒事项..." autocomplete="off">
+        <button class="search-clear" id="search-clear" style="display:none;">&#x2715;</button>
       </div>
       <div class="list-tabs" id="list-tabs"></div>
       <div class="reminders-list" id="reminders-list"></div>

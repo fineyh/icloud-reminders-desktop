@@ -1,9 +1,14 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, Notification, nativeTheme } = require('electron');
 const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
 const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow } = require('./windows');
 
 const store = new Store();
+
+// Track which reminders we've already notified about (by recordName)
+const notifiedReminders = new Set();
+// Track the last date we sent the daily summary notification (YYYY-MM-DD)
+let lastDailySummaryDate = null;
 
 function setupIpcHandlers() {
   const backendUrl = getBackendUrl();
@@ -38,8 +43,93 @@ function setupIpcHandlers() {
     return backendFetch('/api/auth/logout', { method: 'POST' });
   });
 
+  ipcMain.handle('reminders:complete', async (_event, recordName, recordChangeTag) => {
+    return backendFetch('/api/reminders/complete', {
+      method: 'POST',
+      body: JSON.stringify({ recordName, recordChangeTag }),
+    });
+  });
+
+  ipcMain.handle('reminders:uncomplete', async (_event, recordName, recordChangeTag) => {
+    return backendFetch('/api/reminders/uncomplete', {
+      method: 'POST',
+      body: JSON.stringify({ recordName, recordChangeTag }),
+    });
+  });
+
+  function checkDueNotifications(result) {
+    if (!result || !result.lists) return;
+
+    const now = new Date();
+    const iconPath = require('path').join(__dirname, '..', 'renderer', 'assets', 'app-icon.ico');
+
+    // --- Per-item due notifications ---
+    if (store.get('notificationsEnabled', true)) {
+      Object.entries(result.lists).forEach(([listName, items]) => {
+        items.forEach((item) => {
+          if (item.completed || !item.due_date || !item.recordName) return;
+          if (notifiedReminders.has(item.recordName)) return;
+
+          const dueDate = new Date(item.due_date);
+          const diffMs = dueDate - now;
+
+          // Notify if due within next 5 minutes or already overdue (within last 24h)
+          if (diffMs <= 5 * 60 * 1000 && diffMs > -24 * 60 * 60 * 1000) {
+            notifiedReminders.add(item.recordName);
+            const notification = new Notification({
+              title: '提醒事项到期',
+              body: item.title + (listName ? ` (${listName})` : ''),
+              icon: iconPath,
+            });
+            notification.show();
+          }
+        });
+      });
+    }
+
+    // --- Daily summary notification ---
+    if (store.get('dailySummaryEnabled', true)) {
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (lastDailySummaryDate !== todayStr) {
+        // Collect all items due today (not completed)
+        const todayItems = [];
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        Object.entries(result.lists).forEach(([listName, items]) => {
+          items.forEach((item) => {
+            if (item.completed || !item.due_date) return;
+            const dueDate = new Date(item.due_date);
+            if (dueDate >= todayStart && dueDate <= todayEnd) {
+              todayItems.push({ ...item, listName });
+            }
+          });
+        });
+
+        if (todayItems.length > 0) {
+          lastDailySummaryDate = todayStr;
+          const titles = todayItems.slice(0, 3).map((i) => i.title);
+          let body = titles.join('、');
+          if (todayItems.length > 3) {
+            body += ` 等 ${todayItems.length} 项`;
+          }
+          const notification = new Notification({
+            title: `今日有 ${todayItems.length} 项提醒事项到期`,
+            body,
+            icon: iconPath,
+          });
+          notification.show();
+        }
+      }
+    }
+  }
+
   ipcMain.handle('reminders:fetch', async () => {
     const result = await backendFetch('/api/reminders');
+    // Check for due reminders and notify
+    checkDueNotifications(result);
     // Also send to mini window if it exists
     const miniWin = getMiniWindow();
     if (miniWin && !miniWin.isDestroyed()) {
@@ -86,6 +176,9 @@ function setupIpcHandlers() {
     const loginSettings = app.getLoginItemSettings();
     return {
       autoLaunch: loginSettings.openAtLogin,
+      notificationsEnabled: store.get('notificationsEnabled', true),
+      dailySummaryEnabled: store.get('dailySummaryEnabled', true),
+      darkMode: store.get('darkMode', 'system'),
     };
   });
 
@@ -93,7 +186,33 @@ function setupIpcHandlers() {
     if (typeof settings.autoLaunch === 'boolean') {
       app.setLoginItemSettings({ openAtLogin: settings.autoLaunch });
     }
+    if (typeof settings.notificationsEnabled === 'boolean') {
+      store.set('notificationsEnabled', settings.notificationsEnabled);
+    }
+    if (typeof settings.dailySummaryEnabled === 'boolean') {
+      store.set('dailySummaryEnabled', settings.dailySummaryEnabled);
+    }
+    if (typeof settings.darkMode === 'string') {
+      store.set('darkMode', settings.darkMode);
+    }
     return { ok: true };
+  });
+
+  ipcMain.handle('settings:get-system-theme', async () => {
+    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  });
+
+  // Broadcast system theme changes to all windows
+  nativeTheme.on('updated', () => {
+    const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    const panel = getPanelWindow();
+    if (panel && !panel.isDestroyed()) {
+      panel.webContents.send('theme-changed', theme);
+    }
+    const miniWin = getMiniWindow();
+    if (miniWin && !miniWin.isDestroyed()) {
+      miniWin.webContents.send('theme-changed', theme);
+    }
   });
 }
 
