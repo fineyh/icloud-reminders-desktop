@@ -13,6 +13,7 @@ function getBackgroundColor() {
 
 let panelWindow = null;
 let miniWindow = null;
+let quickAddWindow = null;
 
 function createPanelWindow() {
   panelWindow = new BrowserWindow({
@@ -161,12 +162,66 @@ function toggleMiniAlwaysOnTop() {
   return pinned;
 }
 
+function createQuickAddWindow() {
+  quickAddWindow = new BrowserWindow({
+    width: 420,
+    height: 170,
+    frame: false,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    alwaysOnTop: true,
+    transparent: false,
+    backgroundColor: getBackgroundColor(),
+    icon: path.join(__dirname, '..', 'renderer', 'assets', 'app-icon.ico'),
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'renderer', 'js', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  quickAddWindow.loadFile(path.join(__dirname, '..', 'renderer', 'quick-add.html'));
+
+  quickAddWindow.on('blur', () => {
+    if (quickAddWindow && !quickAddWindow.isDestroyed()) {
+      quickAddWindow.hide();
+    }
+  });
+
+  quickAddWindow.on('closed', () => {
+    quickAddWindow = null;
+  });
+
+  return quickAddWindow;
+}
+
+function showQuickAdd() {
+  if (!quickAddWindow || quickAddWindow.isDestroyed()) {
+    quickAddWindow = createQuickAddWindow();
+  }
+
+  // Center on the primary display
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  const [winW, winH] = quickAddWindow.getSize();
+  const x = Math.round((screenW - winW) / 2);
+  const y = Math.round((screenH - winH) / 3); // slightly above center
+  quickAddWindow.setPosition(x, y);
+  quickAddWindow.show();
+  quickAddWindow.focus();
+  quickAddWindow.webContents.send('quick-add:show');
+}
+
 function getPanelWindow() {
   return panelWindow;
 }
 
 function getMiniWindow() {
   return miniWindow;
+}
+
+function getQuickAddWindow() {
+  return quickAddWindow;
 }
 
 module.exports = {
@@ -177,6 +232,8 @@ module.exports = {
   toggleMiniWindow,
   togglePanelAlwaysOnTop,
   toggleMiniAlwaysOnTop,
+  showQuickAdd,
   getPanelWindow,
   getMiniWindow,
+  getQuickAddWindow,
 };

@@ -502,6 +502,10 @@
   }
 
   // --- Header Actions ---
+  document.getElementById('btn-add').addEventListener('click', () => {
+    window.api.window.showQuickAdd();
+  });
+
   document.getElementById('btn-refresh').addEventListener('click', async () => {
     showLoading(true);
     await loadReminders();

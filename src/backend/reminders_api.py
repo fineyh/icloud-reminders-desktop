@@ -34,7 +34,7 @@ def _ck_query(api, record_type):
     return resp.json()
 
 
-def _ck_lookup(api, record_names):
+def _ck_lookup(api, record_names, record_type="Reminder"):
     """Lookup CloudKit records by their recordNames."""
     base = _ck_base_url(api)
     if not base:
@@ -43,7 +43,7 @@ def _ck_lookup(api, record_names):
         "records": [
             {
                 "recordName": name,
-                "recordType": "Reminder",
+                "recordType": record_type,
             }
             for name in record_names
         ],
@@ -358,6 +358,113 @@ def _format_due_date_legacy(reminder):
     return None
 
 
+def _encode_varint(value):
+    """Encode an integer as a protobuf varint."""
+    if value < 0:
+        value = value & 0xFFFFFFFFFFFFFFFF
+    result = bytearray()
+    while value > 0x7F:
+        result.append((value & 0x7F) | 0x80)
+        value >>= 7
+    result.append(value & 0x7F)
+    return bytes(result)
+
+
+def _pb_field_varint(field_num, value):
+    """Encode a protobuf varint field."""
+    return _encode_varint((field_num << 3) | 0) + _encode_varint(value)
+
+
+def _pb_field_bytes(field_num, data):
+    """Encode a protobuf length-delimited field."""
+    return _encode_varint((field_num << 3) | 2) + _encode_varint(len(data)) + data
+
+
+def _build_title_document(text):
+    """Build a TitleDocument protobuf for a new CloudKit Reminder.
+
+    Apple Reminders stores title text in a gzip-compressed protobuf
+    (NSAttributedString format). The structure is:
+
+    Document {
+      field 1 (varint): 0          // version
+      field 2 (message): Wrapper {
+        field 1 (varint): 0
+        field 2 (varint): 0
+        field 3 (message): AttributedString {
+          field 2 (string): text
+          field 3 (message): AttributeRun[]  // paragraph style, font style, sentinel
+          field 4 (message): Metadata         // UUID + char counts
+          field 5 (message): {field 1: char_count}
+        }
+      }
+    }
+    """
+    import base64
+    import gzip
+    import uuid
+
+    text_bytes = text.encode("utf-8")
+    char_count = len(text)  # Unicode character count, not byte count
+
+    # --- Build AttributedString (field 3 of wrapper) ---
+
+    # Field 2: the actual text
+    text_field = _pb_field_bytes(2, text_bytes)
+
+    # Attribute run 1: default paragraph style (type 0)
+    style_0 = _pb_field_varint(1, 0) + _pb_field_varint(2, 0)
+    attr_run_1 = _pb_field_bytes(3,
+        _pb_field_bytes(1, style_0) +
+        _pb_field_varint(2, 0) +
+        _pb_field_bytes(3, style_0) +
+        _pb_field_varint(5, 1)
+    )
+
+    # Attribute run 2: font style (type 1) covering all characters
+    style_1 = _pb_field_varint(1, 1) + _pb_field_varint(2, 0)
+    attr_run_2 = _pb_field_bytes(3,
+        _pb_field_bytes(1, style_1) +
+        _pb_field_varint(2, char_count) +
+        _pb_field_bytes(3, style_1) +
+        _pb_field_varint(5, 2)
+    )
+
+    # Attribute run 3: sentinel (0xFFFFFFFF marks end)
+    sentinel = _pb_field_varint(1, 0) + _pb_field_varint(2, 0xFFFFFFFF)
+    attr_run_3 = _pb_field_bytes(3,
+        _pb_field_bytes(1, sentinel) +
+        _pb_field_varint(2, 0) +
+        _pb_field_bytes(3, sentinel)
+    )
+
+    # Field 4: metadata with document UUID and char count
+    doc_uuid = uuid.uuid4().bytes
+    metadata = _pb_field_bytes(4,
+        _pb_field_bytes(1,
+            _pb_field_bytes(1, doc_uuid) +
+            _pb_field_bytes(2, _pb_field_varint(1, char_count)) +
+            _pb_field_bytes(2, _pb_field_varint(1, 1))
+        )
+    )
+
+    # Field 5: char count reference
+    field5 = _pb_field_bytes(5, _pb_field_varint(1, char_count))
+
+    attributed_string = text_field + attr_run_1 + attr_run_2 + attr_run_3 + metadata + field5
+
+    # Wrapper (field 2 of document)
+    wrapper = (_pb_field_varint(1, 0) +
+               _pb_field_varint(2, 0) +
+               _pb_field_bytes(3, attributed_string))
+
+    # Document
+    document = _pb_field_varint(1, 0) + _pb_field_bytes(2, wrapper)
+
+    compressed = gzip.compress(document)
+    return base64.b64encode(compressed).decode("ascii")
+
+
 def _update_resolution_token_map(current_record, changed_field_keys):
     """Update the ResolutionTokenMap CRDT tokens for changed fields.
 
@@ -427,8 +534,8 @@ def _ck_modify(api, record_name, record_type, fields):
         return None
 
     # Step 1: Lookup the record to get the latest recordChangeTag
-    _log.info(f"[CK_MODIFY] Looking up {record_name} to get latest recordChangeTag")
-    lookup_resp = _ck_lookup(api, [record_name])
+    _log.info(f"[CK_MODIFY] Looking up {record_name} (type={record_type}) to get latest recordChangeTag")
+    lookup_resp = _ck_lookup(api, [record_name], record_type=record_type)
     if not lookup_resp:
         _log.error("[CK_MODIFY] Lookup failed")
         return None
@@ -551,6 +658,180 @@ def uncomplete_reminder():
         return jsonify({"status": "ok"})
     except Exception as e:
         _log.error(f"[UNCOMPLETE] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@reminders_bp.route("/api/reminders/create", methods=["POST"])
+def create_reminder():
+    """Create a new reminder via CloudKit."""
+    import uuid
+    import time
+
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or not data.get("title"):
+        return jsonify({"error": "title is required"}), 400
+
+    title = data["title"].strip()
+    list_name = data.get("listName", "")
+
+    try:
+        base = _ck_base_url(api)
+        if not base:
+            return jsonify({"error": "CloudKit not available"}), 500
+
+        # Step 1: Find the target list record
+        lists_data = _ck_query(api, "Lists")
+        if not lists_data:
+            return jsonify({"error": "Cannot query lists"}), 500
+
+        target_list = None
+        for rec in lists_data.get("records", []):
+            rec_name = _ck_field(rec, "Name", "").strip()
+            deleted = _ck_field(rec, "Deleted", 0)
+            if deleted:
+                continue
+            if rec_name == list_name:
+                target_list = rec
+                break
+
+        # If no match, use the first non-deleted list
+        if target_list is None:
+            for rec in lists_data.get("records", []):
+                if not _ck_field(rec, "Deleted", 0):
+                    target_list = rec
+                    break
+
+        if target_list is None:
+            return jsonify({"error": "No lists found"}), 500
+
+        list_record_name = target_list.get("recordName")
+        list_change_tag = target_list.get("recordChangeTag")
+        actual_list_name = _ck_field(target_list, "Name", "")
+        _log.info(f"[CREATE] Target list: '{actual_list_name}' ({list_record_name})")
+
+        # Step 2: Create the new Reminder record
+        reminder_uuid = str(uuid.uuid4()).upper()
+        reminder_record_name = f"Reminder/{reminder_uuid}"
+        _log.info(f"[CREATE] New reminder: {reminder_record_name}")
+
+        apple_now = time.time() - 978307200
+        replica_id = str(uuid.uuid4()).upper()
+
+        title_doc = _build_title_document(title)
+
+        # Build initial ResolutionTokenMap
+        rtm_keys = ["title", "completed"]
+        token_map = {}
+        for key in rtm_keys:
+            token_map[key] = {
+                "counter": 1,
+                "modificationTime": apple_now,
+                "replicaID": replica_id,
+            }
+        rtm_value = json.dumps({"map": token_map})
+
+        reminder_fields = {
+            "TitleDocument": {"value": title_doc, "type": "BYTES"},
+            "Completed": {"value": 0, "type": "NUMBER_INT64"},
+            "Priority": {"value": 0, "type": "NUMBER_INT64"},
+            "Flagged": {"value": 0, "type": "NUMBER_INT64"},
+            "List": {
+                "value": {"recordName": list_record_name, "action": "NONE"},
+                "type": "REFERENCE",
+            },
+            "ResolutionTokenMap": {"value": rtm_value, "type": "STRING"},
+        }
+
+        create_body = {
+            "operations": [
+                {
+                    "operationType": "create",
+                    "record": {
+                        "recordName": reminder_record_name,
+                        "recordType": "Reminder",
+                        "fields": reminder_fields,
+                    },
+                }
+            ],
+            "zoneID": {"zoneName": _CK_ZONE},
+        }
+
+        _log.info(f"[CREATE] Sending create request: {json.dumps(create_body, ensure_ascii=False, default=str)[:2000]}")
+        resp = api.session.post(f"{base}/records/modify", params=api.params, json=create_body)
+        _log.info(f"[CREATE] HTTP status: {resp.status_code}")
+        resp.raise_for_status()
+        create_result = resp.json()
+        _log.info(f"[CREATE] Response: {json.dumps(create_result, ensure_ascii=False, default=str)[:3000]}")
+
+        for rec in create_result.get("records", []):
+            if "serverErrorCode" in rec:
+                err = rec.get("serverErrorCode")
+                reason = rec.get("reason", "unknown")
+                _log.error(f"[CREATE] Reminder create error: {err} - {reason}")
+                return jsonify({"error": f"CloudKit error: {err} - {reason}"}), 500
+
+        _log.info(f"[CREATE] Reminder record created successfully")
+
+        # Step 3: Add the new UUID to the list's ReminderIDs
+        current_ids_str = _ck_field(target_list, "ReminderIDs", "[]")
+        try:
+            current_ids = json.loads(current_ids_str)
+        except (json.JSONDecodeError, TypeError):
+            current_ids = []
+
+        current_ids.append(reminder_uuid)
+        new_ids_str = json.dumps(current_ids)
+        _log.info(f"[CREATE] Updating list '{actual_list_name}' ReminderIDs: adding {reminder_uuid} (total: {len(current_ids)})")
+
+        list_fields = {
+            "ReminderIDs": {"value": new_ids_str, "type": "STRING"},
+        }
+
+        # Update the list using _ck_modify (which fetches latest change tag)
+        # Note: query uses "Lists" but the actual record type for modify is "List"
+        list_result = _ck_modify(api, list_record_name, "List", list_fields)
+        if list_result is None:
+            _log.warning("[CREATE] Reminder created but failed to update list ReminderIDs")
+        elif isinstance(list_result, dict) and "error" in list_result:
+            _log.warning(f"[CREATE] List update error: {list_result['error']}")
+        else:
+            _log.info(f"[CREATE] List update response: {json.dumps(list_result, ensure_ascii=False, default=str)[:2000]}")
+
+        _log.info(f"[CREATE] Done. Added {reminder_uuid} to list '{actual_list_name}'")
+        return jsonify({"status": "ok", "recordName": reminder_record_name})
+
+    except Exception as e:
+        _log.error(f"[CREATE] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@reminders_bp.route("/api/reminders/lists", methods=["GET"])
+def fetch_list_names():
+    """Fetch only the list names (for quick-add dropdown)."""
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        lists_data = _ck_query(api, "Lists")
+        if not lists_data:
+            return jsonify({"names": []})
+
+        names = []
+        for rec in lists_data.get("records", []):
+            name = _ck_field(rec, "Name", "").strip()
+            deleted = _ck_field(rec, "Deleted", 0)
+            if deleted or not name:
+                continue
+            names.append(name)
+
+        return jsonify({"names": names})
+    except Exception as e:
+        _log.error(f"[LISTS] Error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

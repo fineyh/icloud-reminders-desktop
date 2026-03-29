@@ -1,7 +1,7 @@
 const { ipcMain, app, Notification, nativeTheme } = require('electron');
 const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
-const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow } = require('./windows');
+const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow, getQuickAddWindow, showQuickAdd } = require('./windows');
 
 const store = new Store();
 
@@ -126,6 +126,17 @@ function setupIpcHandlers() {
     }
   }
 
+  ipcMain.handle('reminders:create', async (_event, title, listName) => {
+    return backendFetch('/api/reminders/create', {
+      method: 'POST',
+      body: JSON.stringify({ title, listName }),
+    });
+  });
+
+  ipcMain.handle('reminders:lists', async () => {
+    return backendFetch('/api/reminders/lists');
+  });
+
   ipcMain.handle('reminders:fetch', async () => {
     const result = await backendFetch('/api/reminders');
     // Check for due reminders and notify
@@ -158,6 +169,26 @@ function setupIpcHandlers() {
   ipcMain.handle('window:close-mini', async () => {
     const miniWin = getMiniWindow();
     if (miniWin) miniWin.hide();
+    return { ok: true };
+  });
+
+  ipcMain.handle('window:show-quick-add', async () => {
+    showQuickAdd();
+    return { ok: true };
+  });
+
+  ipcMain.handle('window:close-quick-add', async () => {
+    const qaWin = getQuickAddWindow();
+    if (qaWin) qaWin.hide();
+    // Notify panel to refresh
+    const panel = getPanelWindow();
+    if (panel && !panel.isDestroyed()) {
+      panel.webContents.send('reminders:refresh');
+    }
+    const miniWin = getMiniWindow();
+    if (miniWin && !miniWin.isDestroyed()) {
+      miniWin.webContents.send('reminders:refresh');
+    }
     return { ok: true };
   });
 

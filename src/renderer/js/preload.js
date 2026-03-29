@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
     fetch: () => ipcRenderer.invoke('reminders:fetch'),
     complete: (recordName, recordChangeTag) => ipcRenderer.invoke('reminders:complete', recordName, recordChangeTag),
     uncomplete: (recordName, recordChangeTag) => ipcRenderer.invoke('reminders:uncomplete', recordName, recordChangeTag),
+    create: (title, listName) => ipcRenderer.invoke('reminders:create', title, listName),
+    lists: () => ipcRenderer.invoke('reminders:lists'),
   },
   window: {
     toggleMini: () => ipcRenderer.invoke('window:toggle-mini'),
@@ -18,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
     toggleMiniPin: () => ipcRenderer.invoke('window:toggle-mini-pin'),
     close: () => ipcRenderer.invoke('window:close'),
     closeMini: () => ipcRenderer.invoke('window:close-mini'),
+    showQuickAdd: () => ipcRenderer.invoke('window:show-quick-add'),
+    closeQuickAdd: () => ipcRenderer.invoke('window:close-quick-add'),
     minimizeMini: () => ipcRenderer.invoke('window:minimize-mini'),
   },
   settings: {
@@ -26,7 +30,7 @@ contextBridge.exposeInMainWorld('api', {
     getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
   },
   on: (channel, callback) => {
-    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed'];
+    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed', 'quick-add:show'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args));
     }

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>快速添加提醒</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    body {
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .quick-add-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 0;
+    }
+
+    /* Drag bar */
+    .drag-bar {
+      height: 28px;
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .drag-bar-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .drag-bar-shortcut {
+      font-size: 10px;
+      color: var(--text-muted);
+      -webkit-app-region: no-drag;
+    }
+
+    /* Main content */
+    .quick-add-body {
+      flex: 1;
+      padding: 0 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .title-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-family: inherit;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .title-input:focus {
+      border-color: var(--accent);
+    }
+
+    .title-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .quick-add-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .list-select {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .list-select:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-add {
+      padding: 7px 18px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-add:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-add:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Status */
+    .quick-add-status {
+      font-size: 11px;
+      min-height: 16px;
+      padding: 0 2px;
+    }
+
+    .quick-add-status.error {
+      color: var(--danger);
+    }
+
+    .quick-add-status.success {
+      color: var(--success);
+    }
+
+    .quick-add-status.loading {
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="quick-add-container">
+    <div class="drag-bar">
+      <span class="drag-bar-title">快速添加提醒</span>
+      <span class="drag-bar-shortcut">Esc 关闭</span>
+    </div>
+    <div class="quick-add-body">
+      <input type="text" class="title-input" id="title-input" placeholder="输入提醒事项..." autocomplete="off" autofocus>
+      <div class="quick-add-row">
+        <select class="list-select" id="list-select">
+          <option value="">加载中...</option>
+        </select>
+        <button class="btn-add" id="btn-add">添加</button>
+      </div>
+      <div class="quick-add-status" id="status-msg"></div>
+    </div>
+  </div>
+
+  <script src="js/quick-add.js"></script>
+</body>
+</html>

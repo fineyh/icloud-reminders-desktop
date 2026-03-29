@@ -1,6 +1,6 @@
 const { app } = require('electron');
 const { startBackend, stopBackend } = require('./python-bridge');
-const { createPanelWindow, togglePanel, getPanelWindow } = require('./windows');
+const { createPanelWindow, togglePanel, getPanelWindow, showQuickAdd } = require('./windows');
 const { createTray, getTray } = require('./tray');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
 const { setupIpcHandlers } = require('./ipc-handlers');
@@ -55,7 +55,7 @@ app.whenReady().then(async () => {
   });
 
   // Register global shortcuts
-  registerShortcuts({ onTogglePanel });
+  registerShortcuts({ onTogglePanel, onQuickAdd: showQuickAdd });
 
   console.log('iCloud Reminders app is ready. Look for the tray icon.');
 });
