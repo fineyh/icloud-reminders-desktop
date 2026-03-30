@@ -290,6 +290,38 @@
   background: var(--bg-hover);
 }
 
+/* Drag and drop */
+.reminder-item[draggable="true"] {
+  cursor: grab;
+}
+
+.reminder-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.reminder-item.dragging {
+  opacity: 0.4;
+}
+
+.reminder-item.drag-over-top {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+.reminder-item.drag-over-bottom {
+  box-shadow: 0 2px 0 0 var(--accent);
+}
+
+.list-tab.drop-target {
+  background: var(--accent) !important;
+  color: #fff !important;
+  transform: scale(1.05);
+  transition: all 0.15s;
+}
+
+.reminders-list.drag-active .reminder-item * {
+  pointer-events: none;
+}
+
 .reminder-checkbox {
   width: 20px;
   height: 20px;

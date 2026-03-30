@@ -133,6 +133,20 @@ function setupIpcHandlers() {
     });
   });
 
+  ipcMain.handle('reminders:reorder', async (_event, listName, reminderIds) => {
+    return backendFetch('/api/reminders/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ listName, reminderIds }),
+    });
+  });
+
+  ipcMain.handle('reminders:move', async (_event, recordName, sourceListName, targetListName) => {
+    return backendFetch('/api/reminders/move', {
+      method: 'POST',
+      body: JSON.stringify({ recordName, sourceListName, targetListName }),
+    });
+  });
+
   ipcMain.handle('reminders:lists', async () => {
     return backendFetch('/api/reminders/lists');
   });

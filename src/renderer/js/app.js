@@ -6,6 +6,7 @@
   let refreshTimer = null;
   let showCompleted = false;
   let searchQuery = '';
+  let dragSourceList = null;
 
   // Smart Lists definition
   const SMART_LISTS = [
@@ -238,6 +239,52 @@
         renderReminders();
         updateStatusBar();
       });
+
+      // Drop target for moving reminders between lists (regular tabs only)
+      if (!isSmartTab) {
+        tab.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          tab.classList.add('drop-target');
+        });
+        tab.addEventListener('dragleave', () => {
+          tab.classList.remove('drop-target');
+        });
+        tab.addEventListener('drop', (e) => {
+          e.preventDefault();
+          tab.classList.remove('drop-target');
+
+          const recordName = e.dataTransfer.getData('text/plain');
+          if (!recordName || !dragSourceList || dragSourceList === id) return;
+
+          // Optimistic UI update: move item between arrays
+          const sourceItems = remindersData[dragSourceList];
+          const targetItems = remindersData[id];
+          if (!sourceItems || !targetItems) return;
+
+          const itemIndex = sourceItems.findIndex((r) => r.recordName === recordName);
+          if (itemIndex === -1) return;
+
+          const [moved] = sourceItems.splice(itemIndex, 1);
+          targetItems.push(moved);
+
+          renderListTabs();
+          renderReminders();
+          updateStatusBar();
+
+          // Sync to server
+          window.api.reminders.move(recordName, dragSourceList, id).then((result) => {
+            if (result.error) {
+              console.error('[MOVE] Server error:', result.error);
+              loadReminders(); // rollback
+            }
+          }).catch((err) => {
+            console.error('[MOVE] Failed:', err);
+            loadReminders(); // rollback
+          });
+        });
+      }
+
       container.appendChild(tab);
     }
 
@@ -350,8 +397,30 @@
     const el = document.createElement('div');
     el.className = 'reminder-item';
 
+    // Drag support: only for pending items in regular lists, not in search mode
+    const canDrag = !isCompleted && !searchQuery && !isSmartList(currentList) && reminder.recordName;
+    if (canDrag) {
+      el.setAttribute('draggable', 'true');
+      el.dataset.recordName = reminder.recordName;
+
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', reminder.recordName);
+        dragSourceList = currentList;
+        el.classList.add('dragging');
+        document.getElementById('reminders-list').classList.add('drag-active');
+      });
+
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        document.getElementById('reminders-list').classList.remove('drag-active');
+        clearDragIndicators();
+      });
+    }
+
     const checkbox = document.createElement('div');
     checkbox.className = 'reminder-checkbox' + (isCompleted ? ' completed' : '');
+    checkbox.setAttribute('draggable', 'false');
 
     if (reminder.recordName) {
       checkbox.addEventListener('click', () => toggleReminder(reminder, isCompleted));
@@ -403,6 +472,105 @@
     el.appendChild(content);
     return el;
   }
+
+  // --- Drag and Drop ---
+  function clearDragIndicators() {
+    document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach((el) => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    document.querySelectorAll('.drop-target').forEach((el) => {
+      el.classList.remove('drop-target');
+    });
+  }
+
+  function getDragAfterElement(container, y) {
+    const items = [...container.querySelectorAll('.reminder-item:not(.dragging)')];
+    return items.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  // Reorder within list: dragover and drop on #reminders-list
+  const remindersList = document.getElementById('reminders-list');
+
+  remindersList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDragIndicators();
+
+    const afterElement = getDragAfterElement(remindersList, e.clientY);
+    if (afterElement) {
+      afterElement.classList.add('drag-over-top');
+    } else {
+      // Dropping at the end
+      const items = remindersList.querySelectorAll('.reminder-item:not(.dragging)');
+      if (items.length > 0) {
+        items[items.length - 1].classList.add('drag-over-bottom');
+      }
+    }
+  });
+
+  remindersList.addEventListener('dragleave', (e) => {
+    // Only clear if leaving the container entirely
+    if (!remindersList.contains(e.relatedTarget)) {
+      clearDragIndicators();
+    }
+  });
+
+  remindersList.addEventListener('drop', (e) => {
+    e.preventDefault();
+    clearDragIndicators();
+
+    const recordName = e.dataTransfer.getData('text/plain');
+    if (!recordName || !currentList || isSmartList(currentList) || !remindersData[currentList]) return;
+
+    const items = remindersData[currentList];
+    const dragIndex = items.findIndex((r) => r.recordName === recordName);
+    if (dragIndex === -1) return;
+
+    // Determine insertion index
+    const afterElement = getDragAfterElement(remindersList, e.clientY);
+    let targetIndex;
+    if (afterElement) {
+      const targetRecordName = afterElement.dataset.recordName;
+      // Find among pending items only (since completed items are in a separate section)
+      const pendingItems = items.filter((r) => !r.completed);
+      const pendingTargetIdx = pendingItems.findIndex((r) => r.recordName === targetRecordName);
+      // Map back to full array index
+      targetIndex = items.indexOf(pendingItems[pendingTargetIdx]);
+    } else {
+      // Drop at end of pending items
+      const lastPending = [...items].reverse().find((r) => !r.completed);
+      targetIndex = lastPending ? items.indexOf(lastPending) + 1 : items.length;
+    }
+
+    if (targetIndex === -1) targetIndex = items.length;
+
+    // Reorder the array
+    const [moved] = items.splice(dragIndex, 1);
+    const insertAt = targetIndex > dragIndex ? targetIndex - 1 : targetIndex;
+    items.splice(insertAt, 0, moved);
+
+    // Optimistic render
+    renderReminders();
+
+    // Extract UUIDs and sync to server
+    const reminderIds = items.map((r) => r.recordName.replace('Reminder/', ''));
+    window.api.reminders.reorder(currentList, reminderIds).then((result) => {
+      if (result.error) {
+        console.error('[REORDER] Server error:', result.error);
+        loadReminders(); // rollback
+      }
+    }).catch((err) => {
+      console.error('[REORDER] Failed:', err);
+      loadReminders(); // rollback
+    });
+  });
 
   function formatDate(dateStr) {
     try {

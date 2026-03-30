@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('api', {
     uncomplete: (recordName, recordChangeTag) => ipcRenderer.invoke('reminders:uncomplete', recordName, recordChangeTag),
     create: (title, listName) => ipcRenderer.invoke('reminders:create', title, listName),
     lists: () => ipcRenderer.invoke('reminders:lists'),
+    reorder: (listName, reminderIds) => ipcRenderer.invoke('reminders:reorder', listName, reminderIds),
+    move: (recordName, sourceListName, targetListName) => ipcRenderer.invoke('reminders:move', recordName, sourceListName, targetListName),
   },
   window: {
     toggleMini: () => ipcRenderer.invoke('window:toggle-mini'),

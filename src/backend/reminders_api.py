@@ -493,25 +493,38 @@ def _update_resolution_token_map(current_record, changed_field_keys):
     apple_now = time.time() - 978307200
     replica_id = str(uuid.uuid4()).upper()
 
+    _log.info(f"[RTM] Current token map keys: {list(token_map.keys())}")
+
     # Map CloudKit field names to ResolutionTokenMap keys
     field_to_token_key = {
         "Completed": "completed",
         "CompletionDate": "completionDate",
         "LastModifiedDate": "lastModifiedDate",
+        "List": "list",
+        "ReminderIDs": "ReminderIDs",
+    }
+
+    # Additional tokens that must be bumped alongside a field change
+    field_to_extra_tokens = {
+        "ReminderIDs": ["reminderIDsMergeableOrdering"],
     }
 
     for field_name in changed_field_keys:
-        token_key = field_to_token_key.get(field_name, field_name)
-        if token_key in token_map:
-            token_map[token_key]["counter"] = token_map[token_key].get("counter", 0) + 1
-            token_map[token_key]["modificationTime"] = apple_now
-            token_map[token_key]["replicaID"] = replica_id
-        else:
-            token_map[token_key] = {
-                "counter": 1,
-                "modificationTime": apple_now,
-                "replicaID": replica_id,
-            }
+        # Collect all token keys to bump for this field
+        token_keys_to_bump = [field_to_token_key.get(field_name, field_name)]
+        token_keys_to_bump.extend(field_to_extra_tokens.get(field_name, []))
+
+        for token_key in token_keys_to_bump:
+            if token_key in token_map:
+                token_map[token_key]["counter"] = token_map[token_key].get("counter", 0) + 1
+                token_map[token_key]["modificationTime"] = apple_now
+                token_map[token_key]["replicaID"] = replica_id
+            else:
+                token_map[token_key] = {
+                    "counter": 1,
+                    "modificationTime": apple_now,
+                    "replicaID": replica_id,
+                }
 
     # Always bump lastModifiedDate token
     if "lastModifiedDate" in token_map and "LastModifiedDate" not in changed_field_keys:
@@ -806,6 +819,170 @@ def create_reminder():
 
     except Exception as e:
         _log.error(f"[CREATE] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@reminders_bp.route("/api/reminders/reorder", methods=["POST"])
+def reorder_reminders():
+    """Reorder reminders within a list by updating the ReminderIDs array."""
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or not data.get("listName") or not isinstance(data.get("reminderIds"), list):
+        return jsonify({"error": "listName and reminderIds are required"}), 400
+
+    list_name = data["listName"]
+    new_ids = data["reminderIds"]
+
+    try:
+        lists_data = _ck_query(api, "Lists")
+        if not lists_data:
+            return jsonify({"error": "Cannot query lists"}), 500
+
+        target_list = None
+        for rec in lists_data.get("records", []):
+            rec_name = _ck_field(rec, "Name", "").strip()
+            deleted = _ck_field(rec, "Deleted", 0)
+            if deleted:
+                continue
+            if rec_name == list_name:
+                target_list = rec
+                break
+
+        if target_list is None:
+            return jsonify({"error": f"List '{list_name}' not found"}), 404
+
+        # Validate that the set of UUIDs matches
+        current_ids_str = _ck_field(target_list, "ReminderIDs", "[]")
+        try:
+            current_ids = json.loads(current_ids_str)
+        except (json.JSONDecodeError, TypeError):
+            current_ids = []
+
+        if set(new_ids) != set(current_ids):
+            _log.warning(f"[REORDER] UUID set mismatch for '{list_name}': client={len(new_ids)}, server={len(current_ids)}")
+            return jsonify({"error": "Reminder list has changed, please refresh"}), 409
+
+        list_record_name = target_list.get("recordName")
+        list_fields = {
+            "ReminderIDs": {"value": json.dumps(new_ids), "type": "STRING"},
+        }
+
+        result = _ck_modify(api, list_record_name, "List", list_fields)
+        if result is None:
+            return jsonify({"error": "CloudKit not available"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify(result), 500
+
+        _log.info(f"[REORDER] Reordered {len(new_ids)} reminders in '{list_name}'")
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        _log.error(f"[REORDER] Error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@reminders_bp.route("/api/reminders/move", methods=["POST"])
+def move_reminder():
+    """Move a reminder from one list to another."""
+    api = get_api()
+    if api is None:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data or not data.get("recordName") or not data.get("sourceListName") or not data.get("targetListName"):
+        return jsonify({"error": "recordName, sourceListName, and targetListName are required"}), 400
+
+    record_name = data["recordName"]
+    source_list_name = data["sourceListName"]
+    target_list_name = data["targetListName"]
+
+    if source_list_name == target_list_name:
+        return jsonify({"status": "ok"})
+
+    try:
+        # Find both list records
+        lists_data = _ck_query(api, "Lists")
+        if not lists_data:
+            return jsonify({"error": "Cannot query lists"}), 500
+
+        source_list = None
+        target_list = None
+        for rec in lists_data.get("records", []):
+            rec_name = _ck_field(rec, "Name", "").strip()
+            deleted = _ck_field(rec, "Deleted", 0)
+            if deleted:
+                continue
+            if rec_name == source_list_name:
+                source_list = rec
+            if rec_name == target_list_name:
+                target_list = rec
+
+        if source_list is None:
+            return jsonify({"error": f"Source list '{source_list_name}' not found"}), 404
+        if target_list is None:
+            return jsonify({"error": f"Target list '{target_list_name}' not found"}), 404
+
+        target_list_record_name = target_list.get("recordName")
+
+        # Step 1: Update the Reminder's List reference
+        reminder_fields = {
+            "List": {
+                "value": {"recordName": target_list_record_name, "action": "NONE"},
+                "type": "REFERENCE",
+            },
+        }
+        result = _ck_modify(api, record_name, "Reminder", reminder_fields)
+        if result is None:
+            return jsonify({"error": "CloudKit not available"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify(result), 500
+
+        _log.info(f"[MOVE] Updated reminder {record_name} List reference to '{target_list_name}'")
+
+        # Extract bare UUID from recordName (e.g. "Reminder/UUID" -> "UUID")
+        reminder_uuid = record_name.replace("Reminder/", "")
+
+        # Step 2: Remove from source list's ReminderIDs
+        source_ids_str = _ck_field(source_list, "ReminderIDs", "[]")
+        try:
+            source_ids = json.loads(source_ids_str)
+        except (json.JSONDecodeError, TypeError):
+            source_ids = []
+
+        if reminder_uuid in source_ids:
+            source_ids.remove(reminder_uuid)
+            source_result = _ck_modify(api, source_list.get("recordName"), "List", {
+                "ReminderIDs": {"value": json.dumps(source_ids), "type": "STRING"},
+            })
+            if source_result is None or (isinstance(source_result, dict) and "error" in source_result):
+                _log.warning(f"[MOVE] Failed to update source list ReminderIDs")
+            else:
+                _log.info(f"[MOVE] Removed {reminder_uuid} from source list '{source_list_name}'")
+
+        # Step 3: Add to target list's ReminderIDs
+        target_ids_str = _ck_field(target_list, "ReminderIDs", "[]")
+        try:
+            target_ids = json.loads(target_ids_str)
+        except (json.JSONDecodeError, TypeError):
+            target_ids = []
+
+        if reminder_uuid not in target_ids:
+            target_ids.append(reminder_uuid)
+            target_result = _ck_modify(api, target_list_record_name, "List", {
+                "ReminderIDs": {"value": json.dumps(target_ids), "type": "STRING"},
+            })
+            if target_result is None or (isinstance(target_result, dict) and "error" in target_result):
+                _log.warning(f"[MOVE] Failed to update target list ReminderIDs")
+            else:
+                _log.info(f"[MOVE] Added {reminder_uuid} to target list '{target_list_name}'")
+
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        _log.error(f"[MOVE] Error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
