@@ -1,4 +1,5 @@
 const { ipcMain, app, Notification, nativeTheme } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
 const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow, getQuickAddWindow, showQuickAdd } = require('./windows');
@@ -245,6 +246,64 @@ function setupIpcHandlers() {
 
   ipcMain.handle('settings:get-system-theme', async () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  });
+
+  // --- Update ---
+  ipcMain.handle('app:version', () => {
+    return app.getVersion();
+  });
+
+  ipcMain.handle('update:check', async () => {
+    try {
+      await autoUpdater.checkForUpdates();
+      return { status: 'checking' };
+    } catch (err) {
+      return { status: 'error', message: err.message };
+    }
+  });
+
+  ipcMain.handle('update:download', async () => {
+    try {
+      await autoUpdater.downloadUpdate();
+      return { ok: true };
+    } catch (err) {
+      return { status: 'error', message: err.message };
+    }
+  });
+
+  ipcMain.handle('update:install', () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+
+  function sendUpdateStatus(data) {
+    const panel = getPanelWindow();
+    if (panel && !panel.isDestroyed()) {
+      panel.webContents.send('update:status', data);
+    }
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    sendUpdateStatus({ status: 'checking' });
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    sendUpdateStatus({ status: 'available', version: info.version });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    sendUpdateStatus({ status: 'up-to-date' });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    sendUpdateStatus({ status: 'downloading', percent: Math.round(progress.percent) });
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    sendUpdateStatus({ status: 'downloaded' });
+  });
+
+  autoUpdater.on('error', (err) => {
+    sendUpdateStatus({ status: 'error', message: err.message });
   });
 
   // Broadcast system theme changes to all windows

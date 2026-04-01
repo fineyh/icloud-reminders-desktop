@@ -1,4 +1,5 @@
 const { app } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { startBackend, stopBackend } = require('./python-bridge');
 const { createPanelWindow, togglePanel, getPanelWindow, showQuickAdd } = require('./windows');
 const { createTray, getTray } = require('./tray');
@@ -56,6 +57,13 @@ app.whenReady().then(async () => {
 
   // Register global shortcuts
   registerShortcuts({ onTogglePanel, onQuickAdd: showQuickAdd });
+
+  // Auto-update setup
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => console.log('Update check failed:', err.message));
+  }, 5000);
 
   console.log('iCloud Reminders app is ready. Look for the tray icon.');
 });

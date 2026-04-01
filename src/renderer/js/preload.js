@@ -31,8 +31,16 @@ contextBridge.exposeInMainWorld('api', {
     set: (settings) => ipcRenderer.invoke('settings:set', settings),
     getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
   },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+  },
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:version'),
+  },
   on: (channel, callback) => {
-    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed', 'quick-add:show'];
+    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed', 'quick-add:show', 'update:status'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args));
     }

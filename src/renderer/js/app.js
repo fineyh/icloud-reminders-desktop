@@ -722,6 +722,9 @@
     // Dark mode: set select value
     const darkModeSelect = document.getElementById('select-dark-mode');
     if (darkModeSelect) darkModeSelect.value = settings.darkMode || 'system';
+    // Show app version
+    const version = await window.api.app.getVersion();
+    document.getElementById('app-version').textContent = 'v' + version;
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -738,6 +741,71 @@
 
   document.getElementById('toggle-daily-summary').addEventListener('change', async (e) => {
     await window.api.settings.set({ dailySummaryEnabled: e.target.checked });
+  });
+
+  // --- Update ---
+  const btnCheckUpdate = document.getElementById('btn-check-update');
+  const btnUpdateDownload = document.getElementById('btn-update-download');
+  const btnUpdateInstall = document.getElementById('btn-update-install');
+  const updateStatusEl = document.getElementById('update-status');
+  const updateStatusText = document.getElementById('update-status-text');
+  const updateProgress = document.getElementById('update-progress');
+  const updateProgressBar = document.getElementById('update-progress-bar');
+
+  btnCheckUpdate.addEventListener('click', async () => {
+    btnCheckUpdate.disabled = true;
+    btnCheckUpdate.textContent = '检查中...';
+    await window.api.update.check();
+  });
+
+  btnUpdateDownload.addEventListener('click', () => {
+    btnUpdateDownload.style.display = 'none';
+    window.api.update.download();
+  });
+
+  btnUpdateInstall.addEventListener('click', () => {
+    window.api.update.install();
+  });
+
+  window.api.on('update:status', (data) => {
+    updateStatusEl.style.display = 'block';
+    btnUpdateDownload.style.display = 'none';
+    btnUpdateInstall.style.display = 'none';
+    updateProgress.style.display = 'none';
+
+    switch (data.status) {
+      case 'checking':
+        updateStatusText.textContent = '正在检查更新...';
+        break;
+      case 'available':
+        updateStatusText.textContent = '发现新版本 v' + data.version;
+        btnUpdateDownload.style.display = 'inline-block';
+        btnCheckUpdate.disabled = false;
+        btnCheckUpdate.textContent = '检查更新';
+        break;
+      case 'up-to-date':
+        updateStatusText.textContent = '已是最新版本';
+        btnCheckUpdate.disabled = false;
+        btnCheckUpdate.textContent = '检查更新';
+        break;
+      case 'downloading':
+        updateStatusText.textContent = '正在下载更新... ' + data.percent + '%';
+        updateProgress.style.display = 'block';
+        updateProgressBar.style.width = data.percent + '%';
+        break;
+      case 'downloaded':
+        updateStatusText.textContent = '更新已下载，重启后生效';
+        updateProgress.style.display = 'none';
+        btnUpdateInstall.style.display = 'inline-block';
+        btnCheckUpdate.disabled = false;
+        btnCheckUpdate.textContent = '检查更新';
+        break;
+      case 'error':
+        updateStatusText.textContent = '检查更新失败';
+        btnCheckUpdate.disabled = false;
+        btnCheckUpdate.textContent = '检查更新';
+        break;
+    }
   });
 
   // Close button
