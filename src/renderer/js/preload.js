@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('api', {
     set: (settings) => ipcRenderer.invoke('settings:set', settings),
     getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
   },
+  shortcuts: {
+    get: () => ipcRenderer.invoke('shortcuts:get'),
+    set: (action, accelerator) => ipcRenderer.invoke('shortcuts:set', { action, accelerator }),
+    reset: () => ipcRenderer.invoke('shortcuts:reset'),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),

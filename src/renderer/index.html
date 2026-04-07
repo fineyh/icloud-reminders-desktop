@@ -114,6 +114,32 @@
           </select>
         </div>
         <div class="settings-divider"></div>
+        <div class="settings-section-title">快捷键</div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">显示/隐藏面板</span>
+            <span class="settings-item-desc">全局快捷键，在任意位置切换面板窗口</span>
+          </div>
+          <button class="shortcut-key-btn" id="shortcut-toggle-panel" data-action="togglePanel">
+            <span class="shortcut-key-text">Ctrl+Alt+R</span>
+          </button>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label">快速添加</span>
+            <span class="settings-item-desc">全局快捷键，打开快速添加提醒窗口</span>
+          </div>
+          <button class="shortcut-key-btn" id="shortcut-quick-add" data-action="quickAdd">
+            <span class="shortcut-key-text">Ctrl+Alt+N</span>
+          </button>
+        </div>
+        <div class="settings-item shortcut-actions">
+          <div class="settings-item-info">
+            <span class="settings-item-desc shortcut-error" id="shortcut-error"></span>
+          </div>
+          <button class="btn btn-small" id="btn-shortcut-reset">恢复默认</button>
+        </div>
+        <div class="settings-divider"></div>
         <div class="settings-item">
           <div class="settings-item-info">
             <span class="settings-item-label">当前版本</span>

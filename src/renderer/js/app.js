@@ -725,9 +725,15 @@
     // Show app version
     const version = await window.api.app.getVersion();
     document.getElementById('app-version').textContent = 'v' + version;
+    // Load shortcuts
+    const shortcutData = await window.api.shortcuts.get();
+    document.getElementById('shortcut-toggle-panel').querySelector('.shortcut-key-text').textContent = shortcutData.current.togglePanel;
+    document.getElementById('shortcut-quick-add').querySelector('.shortcut-key-text').textContent = shortcutData.current.quickAdd;
+    document.getElementById('shortcut-error').textContent = '';
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
+    cancelRecording();
     showView('reminders');
   });
 
@@ -741,6 +747,116 @@
 
   document.getElementById('toggle-daily-summary').addEventListener('change', async (e) => {
     await window.api.settings.set({ dailySummaryEnabled: e.target.checked });
+  });
+
+  // --- Shortcuts ---
+  let recordingButton = null;
+  let previousShortcutText = '';
+
+  function mapKeyToAccelerator(e) {
+    const key = e.key;
+    // Letter keys
+    if (key.length === 1 && /[a-zA-Z]/.test(key)) return key.toUpperCase();
+    // Number keys
+    if (key.length === 1 && /[0-9]/.test(key)) return key;
+    // Function keys
+    if (/^F\d+$/.test(key)) return key;
+    // Special key mappings
+    const specialMap = {
+      ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+      ' ': 'Space', Enter: 'Enter', Tab: 'Tab', Backspace: 'Backspace',
+      Delete: 'Delete', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown',
+      Insert: 'Insert', Escape: 'Escape',
+    };
+    if (specialMap[key]) return specialMap[key];
+    // Fallback: use key code for punctuation etc.
+    if (e.code.startsWith('Key')) return e.code.replace('Key', '');
+    if (e.code.startsWith('Digit')) return e.code.replace('Digit', '');
+    return key;
+  }
+
+  function startRecording(btn) {
+    if (recordingButton && recordingButton !== btn) {
+      cancelRecording();
+    }
+    recordingButton = btn;
+    previousShortcutText = btn.querySelector('.shortcut-key-text').textContent;
+    btn.classList.add('recording');
+    btn.querySelector('.shortcut-key-text').textContent = '请按下快捷键...';
+    document.getElementById('shortcut-error').textContent = '';
+    document.addEventListener('keydown', handleShortcutCapture, true);
+  }
+
+  function cancelRecording() {
+    if (!recordingButton) return;
+    recordingButton.classList.remove('recording');
+    recordingButton.querySelector('.shortcut-key-text').textContent = previousShortcutText;
+    document.removeEventListener('keydown', handleShortcutCapture, true);
+    recordingButton = null;
+    previousShortcutText = '';
+  }
+
+  async function handleShortcutCapture(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Ignore lone modifier presses
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+
+    // Escape cancels recording
+    if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      cancelRecording();
+      return;
+    }
+
+    // Build accelerator string
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Super');
+
+    if (parts.length === 0) {
+      document.getElementById('shortcut-error').textContent = '快捷键必须包含修饰键（Ctrl、Alt、Shift）';
+      return;
+    }
+
+    const keyName = mapKeyToAccelerator(e);
+    parts.push(keyName);
+    const accelerator = parts.join('+');
+    const action = recordingButton.dataset.action;
+
+    const btn = recordingButton;
+    document.removeEventListener('keydown', handleShortcutCapture, true);
+    btn.classList.remove('recording');
+    recordingButton = null;
+
+    const result = await window.api.shortcuts.set(action, accelerator);
+    if (result.ok) {
+      btn.querySelector('.shortcut-key-text').textContent = accelerator;
+      document.getElementById('shortcut-error').textContent = '';
+      previousShortcutText = '';
+    } else {
+      document.getElementById('shortcut-error').textContent = result.error;
+      btn.querySelector('.shortcut-key-text').textContent = previousShortcutText;
+      previousShortcutText = '';
+    }
+  }
+
+  document.querySelectorAll('.shortcut-key-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      startRecording(btn);
+    });
+  });
+
+  document.getElementById('btn-shortcut-reset').addEventListener('click', async () => {
+    cancelRecording();
+    const result = await window.api.shortcuts.reset();
+    if (result.ok) {
+      document.getElementById('shortcut-toggle-panel').querySelector('.shortcut-key-text').textContent = result.shortcuts.togglePanel;
+      document.getElementById('shortcut-quick-add').querySelector('.shortcut-key-text').textContent = result.shortcuts.quickAdd;
+      document.getElementById('shortcut-error').textContent = '';
+    }
   });
 
   // --- Update ---

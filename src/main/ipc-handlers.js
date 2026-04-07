@@ -3,6 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
 const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow, getQuickAddWindow, showQuickAdd } = require('./windows');
+const { getShortcuts, validateShortcut, reregisterShortcuts, DEFAULT_SHORTCUTS } = require('./shortcuts');
 
 const store = new Store();
 
@@ -246,6 +247,41 @@ function setupIpcHandlers() {
 
   ipcMain.handle('settings:get-system-theme', async () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  });
+
+  // --- Shortcuts ---
+  ipcMain.handle('shortcuts:get', async () => {
+    return {
+      current: getShortcuts(),
+      defaults: DEFAULT_SHORTCUTS,
+    };
+  });
+
+  ipcMain.handle('shortcuts:set', async (_event, { action, accelerator }) => {
+    const validation = validateShortcut(accelerator, action);
+    if (!validation.valid) {
+      return { ok: false, error: validation.error };
+    }
+
+    const previous = getShortcuts();
+    const updated = { ...previous, [action]: accelerator };
+    store.set('shortcuts', updated);
+
+    const result = reregisterShortcuts();
+    if (!result[action]) {
+      // Registration failed, revert
+      store.set('shortcuts', previous);
+      reregisterShortcuts();
+      return { ok: false, error: '该快捷键已被其他应用占用' };
+    }
+
+    return { ok: true };
+  });
+
+  ipcMain.handle('shortcuts:reset', async () => {
+    store.delete('shortcuts');
+    reregisterShortcuts();
+    return { ok: true, shortcuts: DEFAULT_SHORTCUTS };
   });
 
   // --- Update ---

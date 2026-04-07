@@ -662,6 +662,55 @@
   color: var(--danger);
 }
 
+/* Settings Section Title */
+.settings-section-title {
+  padding: 12px 16px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+/* Shortcut Key Button */
+.shortcut-key-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 120px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.shortcut-key-btn:hover {
+  background: var(--bg-hover);
+}
+
+.shortcut-key-btn.recording {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+  animation: shortcut-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes shortcut-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2); }
+  50% { box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.35); }
+}
+
+.shortcut-error {
+  color: var(--danger) !important;
+}
+
+.shortcut-actions {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
 /* Settings Divider */
 .settings-divider {
   height: 1px;
