@@ -428,6 +428,8 @@
 
     const content = document.createElement('div');
     content.className = 'reminder-content';
+    content.style.cursor = 'pointer';
+    content.addEventListener('click', () => showDetailPanel(reminder, isCompleted));
 
     const title = document.createElement('div');
     title.className = 'reminder-title' + (isCompleted ? ' completed' : '');
@@ -624,6 +626,88 @@
       itemCount.textContent = `${pending} 项待办`;
     }
   }
+
+  // --- Detail Panel ---
+  const PRIORITY_MAP = {
+    1: { label: '高', cls: 'priority-high' },
+    5: { label: '中', cls: 'priority-medium' },
+    9: { label: '低', cls: 'priority-low' },
+  };
+
+  function findListForReminder(reminder) {
+    if (!isSmartList(currentList) && !searchQuery) return currentList;
+    if (!remindersData || !reminder.recordName) return null;
+    for (const [listName, items] of Object.entries(remindersData)) {
+      if (items.some((item) => item.recordName === reminder.recordName)) return listName;
+    }
+    return null;
+  }
+
+  function showDetailPanel(reminder, isCompleted) {
+    const body = document.getElementById('detail-body');
+    const listName = findListForReminder(reminder);
+
+    const rows = [];
+
+    // Title
+    rows.push(makeDetailRow('标题', escapeHtml(reminder.title)));
+
+    // Notes
+    if (reminder.description) {
+      rows.push(makeDetailRow('备注', `<div class="detail-value description">${escapeHtml(reminder.description)}</div>`, true));
+    } else {
+      rows.push(makeDetailRow('备注', '<span class="detail-value empty">无</span>', true));
+    }
+
+    // Due date
+    const dueDateVal = reminder.due_date ? formatDate(reminder.due_date) : '无';
+    const dueClass = reminder.due_date ? '' : ' empty';
+    rows.push(makeDetailRow('截止日期', `<span class="detail-value${dueClass}">${escapeHtml(dueDateVal)}</span>`, true));
+
+    // Priority
+    const pri = PRIORITY_MAP[reminder.priority];
+    if (pri) {
+      rows.push(makeDetailRow('优先级', `<span class="detail-priority-badge ${pri.cls}">${pri.label}</span>`, true));
+    } else {
+      rows.push(makeDetailRow('优先级', '<span class="detail-value empty">无</span>', true));
+    }
+
+    // Flagged
+    if (reminder.flagged) {
+      rows.push(makeDetailRow('标旗', '<span class="detail-flag">\u2691 已标旗</span>', true));
+    } else {
+      rows.push(makeDetailRow('标旗', '<span class="detail-value empty">未标旗</span>', true));
+    }
+
+    // List
+    if (listName) {
+      rows.push(makeDetailRow('所属列表', escapeHtml(listName)));
+    }
+
+    // Status
+    const statusText = isCompleted ? '已完成' : '待完成';
+    rows.push(makeDetailRow('状态', statusText));
+
+    body.innerHTML = rows.join('');
+    document.getElementById('detail-panel').classList.add('visible');
+  }
+
+  function makeDetailRow(label, value, rawValue) {
+    const valHtml = rawValue ? value : `<div class="detail-value">${value}</div>`;
+    return `<div class="detail-row"><div class="detail-label">${label}</div>${valHtml}</div>`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function hideDetailPanel() {
+    document.getElementById('detail-panel').classList.remove('visible');
+  }
+
+  document.getElementById('detail-back').addEventListener('click', hideDetailPanel);
 
   // --- Search ---
   const searchInput = document.getElementById('search-input');
