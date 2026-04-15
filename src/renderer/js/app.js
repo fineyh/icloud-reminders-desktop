@@ -741,9 +741,15 @@
   });
 
   // Auto refresh
-  function startAutoRefresh() {
+  async function startAutoRefresh(intervalMinutes) {
     stopAutoRefresh();
-    refreshTimer = setInterval(loadReminders, 5 * 60 * 1000); // 5 minutes
+    if (intervalMinutes === undefined) {
+      const settings = await window.api.settings.get();
+      intervalMinutes = settings.refreshInterval ?? 5;
+    }
+    if (intervalMinutes > 0) {
+      refreshTimer = setInterval(loadReminders, intervalMinutes * 60 * 1000);
+    }
   }
 
   function stopAutoRefresh() {
@@ -806,6 +812,8 @@
     // Dark mode: set select value
     const darkModeSelect = document.getElementById('select-dark-mode');
     if (darkModeSelect) darkModeSelect.value = settings.darkMode || 'system';
+    const refreshSelect = document.getElementById('select-refresh-interval');
+    if (refreshSelect) refreshSelect.value = String(settings.refreshInterval ?? 5);
     // Show app version
     const version = await window.api.app.getVersion();
     document.getElementById('app-version').textContent = 'v' + version;
@@ -831,6 +839,12 @@
 
   document.getElementById('toggle-daily-summary').addEventListener('change', async (e) => {
     await window.api.settings.set({ dailySummaryEnabled: e.target.checked });
+  });
+
+  document.getElementById('select-refresh-interval').addEventListener('change', async (e) => {
+    const interval = Number(e.target.value);
+    await window.api.settings.set({ refreshInterval: interval });
+    startAutoRefresh(interval);
   });
 
   // --- Shortcuts ---

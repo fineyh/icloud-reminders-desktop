@@ -226,6 +226,7 @@ function setupIpcHandlers() {
       notificationsEnabled: store.get('notificationsEnabled', true),
       dailySummaryEnabled: store.get('dailySummaryEnabled', true),
       darkMode: store.get('darkMode', 'system'),
+      refreshInterval: store.get('refreshInterval', 5),
     };
   });
 
@@ -241,6 +242,9 @@ function setupIpcHandlers() {
     }
     if (typeof settings.darkMode === 'string') {
       store.set('darkMode', settings.darkMode);
+    }
+    if (typeof settings.refreshInterval === 'number') {
+      store.set('refreshInterval', settings.refreshInterval);
     }
     return { ok: true };
   });
