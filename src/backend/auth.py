@@ -180,6 +180,42 @@ def login(email, password, remember=False, use_international=False):
         return {"status": "error", "message": str(e)}
 
 
+def _check_sms_rate_limit(auth_data):
+    """Inspect Apple's securityCode flags and return a user-facing
+    error dict if SMS is currently blocked, else None.
+
+    Apple exposes booleans rather than timestamps, so we can't show an
+    exact countdown — we map each flag to a sensible Chinese hint.
+    """
+    pnv = auth_data.get("phoneNumberVerification") or {}
+    sec = pnv.get("securityCode") or auth_data.get("securityCode") or {}
+    if sec.get("securityCodeLocked"):
+        return {
+            "status": "error",
+            "code": "sms_locked",
+            "message": "Apple 已锁定此账号的短信验证码功能。请前往 https://iforgot.apple.com 走账号恢复流程。",
+        }
+    if sec.get("tooManyCodesValidated"):
+        return {
+            "status": "error",
+            "code": "too_many_attempts",
+            "message": "短时间内输入错误验证码次数过多，Apple 已临时锁定。请等待数小时后再试。",
+        }
+    if sec.get("tooManyCodesSent"):
+        return {
+            "status": "error",
+            "code": "too_many_sent",
+            "message": "短时间内发送验证码次数过多，请等 30 分钟以上再试。",
+        }
+    if sec.get("securityCodeCooldown"):
+        return {
+            "status": "error",
+            "code": "cooldown",
+            "message": "上一条验证码刚发出，请等待约 1 分钟后再试。",
+        }
+    return None
+
+
 def request_sms_code():
     """Ask Apple to SMS a 6-digit code to the trusted phone number.
 
@@ -195,6 +231,12 @@ def request_sms_code():
     if _api is None:
         return {"status": "error", "message": "Not authenticated. Please login first."}
     auth_data = getattr(_api, "_auth_data", None) or {}
+
+    # Pre-flight: avoid burning quota when Apple has already flagged us
+    blocked = _check_sms_rate_limit(auth_data)
+    if blocked:
+        return blocked
+
     phone = auth_data.get("trustedPhoneNumber")
     if not phone:
         pnv = auth_data.get("phoneNumberVerification") or {}
@@ -213,17 +255,36 @@ def request_sms_code():
             },
             "mode": "sms",
         }
-        _api.session.put(
+        resp = _api.session.put(
             f"{_api._auth_endpoint}/verify/phone",
             json=body,
             headers=headers,
         )
+        # Apple sometimes returns 200 but updates the cooldown flags in
+        # the response body — re-check before declaring success.
+        try:
+            updated = resp.json() or {}
+            blocked = _check_sms_rate_limit(updated)
+            if blocked:
+                return blocked
+        except ValueError:
+            pass
+
         _api._auth_data["mode"] = "sms"
         if "trustedPhoneNumber" not in _api._auth_data:
             _api._auth_data["trustedPhoneNumber"] = phone
         last_two = phone.get("lastTwoDigits", "")
         return {"status": "ok", "phone_tail": last_two}
     except Exception as e:
+        # Apple's HTTP error often carries the same flags in its body
+        resp = getattr(e, "response", None)
+        if resp is not None:
+            try:
+                blocked = _check_sms_rate_limit(resp.json() or {})
+                if blocked:
+                    return blocked
+            except ValueError:
+                pass
         return {"status": "error", "message": str(e)}
 
 

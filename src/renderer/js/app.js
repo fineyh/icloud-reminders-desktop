@@ -197,11 +197,30 @@
 
   const btnSendSms = document.getElementById('btn-send-sms');
   const twofaInfo = document.getElementById('twofa-info');
+  const SMS_RESEND_DEFAULT = '收不到弹窗？发送短信验证码';
+  let smsCountdownTimer = null;
+
+  function startSmsCountdown(seconds) {
+    if (smsCountdownTimer) clearInterval(smsCountdownTimer);
+    btnSendSms.disabled = true;
+    btnSendSms.textContent = `请等待 ${seconds}s 后重试`;
+    smsCountdownTimer = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0) {
+        clearInterval(smsCountdownTimer);
+        smsCountdownTimer = null;
+        btnSendSms.disabled = false;
+        btnSendSms.textContent = SMS_RESEND_DEFAULT;
+      } else {
+        btnSendSms.textContent = `请等待 ${seconds}s 后重试`;
+      }
+    }, 1000);
+  }
+
   btnSendSms.addEventListener('click', async () => {
     twofaError.textContent = '';
     twofaInfo.textContent = '';
     btnSendSms.disabled = true;
-    const original = btnSendSms.textContent;
     btnSendSms.textContent = '发送中...';
     try {
       const result = await window.api.auth.sendSmsCode();
@@ -209,14 +228,24 @@
         const tail = result.phone_tail ? `尾号 ${result.phone_tail}` : '受信任手机号';
         twofaInfo.textContent = `已请求发送短信验证码到${tail}，请在下方输入收到的 6 位数字`;
         focusFirstCodeInput();
-      } else {
-        twofaError.textContent = result.message || '发送短信失败';
+        startSmsCountdown(60);
+        return;
       }
+      twofaError.textContent = result.message || '发送短信失败';
+      // For cooldown, Apple will reject re-sends for ~1 minute. Lock
+      // the button locally so the user doesn't keep tapping.
+      // Other rate-limit codes (too_many_*, sms_locked) need much
+      // longer waits than a UI countdown can usefully show.
+      if (result.code === 'cooldown') {
+        startSmsCountdown(60);
+        return;
+      }
+      btnSendSms.disabled = false;
+      btnSendSms.textContent = SMS_RESEND_DEFAULT;
     } catch (err) {
       twofaError.textContent = '连接后端服务失败';
-    } finally {
       btnSendSms.disabled = false;
-      btnSendSms.textContent = original;
+      btnSendSms.textContent = SMS_RESEND_DEFAULT;
     }
   });
 
