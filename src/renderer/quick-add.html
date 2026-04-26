@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>快速添加提醒</title>
+  <title data-i18n="quickAddTitle">快速添加提醒</title>
   <link rel="stylesheet" href="css/common.css">
   <style>
     body {
@@ -140,21 +140,22 @@
 <body>
   <div class="quick-add-container">
     <div class="drag-bar">
-      <span class="drag-bar-title">快速添加提醒</span>
-      <span class="drag-bar-shortcut">Esc 关闭</span>
+      <span class="drag-bar-title" data-i18n="quickAddTitle">快速添加提醒</span>
+      <span class="drag-bar-shortcut" data-i18n="quickAddEsc">Esc 关闭</span>
     </div>
     <div class="quick-add-body">
-      <input type="text" class="title-input" id="title-input" placeholder="输入提醒事项..." autocomplete="off" autofocus>
+      <input type="text" class="title-input" id="title-input" data-i18n-placeholder="quickAddPlaceholder" placeholder="输入提醒事项..." autocomplete="off" autofocus>
       <div class="quick-add-row">
         <select class="list-select" id="list-select">
-          <option value="">加载中...</option>
+          <option value="" data-i18n="listLoading">加载中...</option>
         </select>
-        <button class="btn-add" id="btn-add">添加</button>
+        <button class="btn-add" id="btn-add" data-i18n="addBtn">添加</button>
       </div>
       <div class="quick-add-status" id="status-msg"></div>
     </div>
   </div>
 
+  <script src="js/i18n.js"></script>
   <script src="js/quick-add.js"></script>
 </body>
 </html>

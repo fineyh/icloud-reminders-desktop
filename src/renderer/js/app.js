@@ -8,11 +8,13 @@
   let searchQuery = '';
   let dragSourceList = null;
 
-  // Smart Lists definition
+  const t = (key, params) => window.i18n.t(key, params);
+
+  // Smart Lists definition (label resolved at render time via t())
   const SMART_LISTS = [
-    { id: '@today', label: '今天', icon: '\u2606' },
-    { id: '@upcoming', label: '即将到期', icon: '\u29D6' },
-    { id: '@flagged', label: '已标旗', icon: '\u2691' },
+    { id: '@today', key: 'smartToday', icon: '☆' },
+    { id: '@upcoming', key: 'smartUpcoming', icon: '⧖' },
+    { id: '@flagged', key: 'smartFlagged', icon: '⚑' },
   ];
 
   function isSmartList(listId) {
@@ -61,7 +63,7 @@
 
   function getSmartListDisplayName(listId) {
     const sl = SMART_LISTS.find((s) => s.id === listId);
-    return sl ? sl.label : listId;
+    return sl ? t(sl.key) : listId;
   }
 
   // DOM elements
@@ -99,7 +101,7 @@
 
     loginError.textContent = '';
     btnLogin.disabled = true;
-    btnLogin.textContent = '登录中...';
+    btnLogin.textContent = t('loginInProgress');
 
     try {
       const result = await window.api.auth.login(email, password, remember, useInternational);
@@ -111,13 +113,13 @@
         showView('twofa');
         focusFirstCodeInput();
       } else {
-        loginError.textContent = result.message || '登录失败';
+        loginError.textContent = result.message || t('loginFailed');
       }
     } catch (err) {
-      loginError.textContent = '连接后端服务失败';
+      loginError.textContent = t('backendConnectFailed');
     } finally {
       btnLogin.disabled = false;
-      btnLogin.textContent = '登录';
+      btnLogin.textContent = t('login');
     }
   });
 
@@ -169,13 +171,13 @@
   btnVerify.addEventListener('click', async () => {
     const code = getCode();
     if (code.length !== 6) {
-      twofaError.textContent = '请输入完整的 6 位验证码';
+      twofaError.textContent = t('completeCode6');
       return;
     }
 
     twofaError.textContent = '';
     btnVerify.disabled = true;
-    btnVerify.textContent = '验证中...';
+    btnVerify.textContent = t('verifying');
 
     try {
       const result = await window.api.auth.verify2fa(code);
@@ -184,35 +186,34 @@
         showView('reminders');
         startAutoRefresh();
       } else {
-        twofaError.textContent = result.message || '验证失败';
+        twofaError.textContent = result.message || t('verifyFailed');
         focusFirstCodeInput();
       }
     } catch (err) {
-      twofaError.textContent = '连接后端服务失败';
+      twofaError.textContent = t('backendConnectFailed');
     } finally {
       btnVerify.disabled = false;
-      btnVerify.textContent = '验证';
+      btnVerify.textContent = t('verify');
     }
   });
 
   const btnSendSms = document.getElementById('btn-send-sms');
   const twofaInfo = document.getElementById('twofa-info');
-  const SMS_RESEND_DEFAULT = '收不到弹窗？发送短信验证码';
   let smsCountdownTimer = null;
 
   function startSmsCountdown(seconds) {
     if (smsCountdownTimer) clearInterval(smsCountdownTimer);
     btnSendSms.disabled = true;
-    btnSendSms.textContent = `请等待 ${seconds}s 后重试`;
+    btnSendSms.textContent = t('smsCountdown', { seconds });
     smsCountdownTimer = setInterval(() => {
       seconds -= 1;
       if (seconds <= 0) {
         clearInterval(smsCountdownTimer);
         smsCountdownTimer = null;
         btnSendSms.disabled = false;
-        btnSendSms.textContent = SMS_RESEND_DEFAULT;
+        btnSendSms.textContent = t('sendSmsDefault');
       } else {
-        btnSendSms.textContent = `请等待 ${seconds}s 后重试`;
+        btnSendSms.textContent = t('smsCountdown', { seconds });
       }
     }, 1000);
   }
@@ -221,17 +222,19 @@
     twofaError.textContent = '';
     twofaInfo.textContent = '';
     btnSendSms.disabled = true;
-    btnSendSms.textContent = '发送中...';
+    btnSendSms.textContent = t('sendingSms');
     try {
       const result = await window.api.auth.sendSmsCode();
       if (result.status === 'ok') {
-        const tail = result.phone_tail ? `尾号 ${result.phone_tail}` : '受信任手机号';
-        twofaInfo.textContent = `已请求发送短信验证码到${tail}，请在下方输入收到的 6 位数字`;
+        const target = result.phone_tail
+          ? t('smsRequestedTail', { tail: result.phone_tail })
+          : t('smsRequestedTrusted');
+        twofaInfo.textContent = t('smsRequestedInfo', { target });
         focusFirstCodeInput();
         startSmsCountdown(60);
         return;
       }
-      twofaError.textContent = result.message || '发送短信失败';
+      twofaError.textContent = result.message || t('smsSendFailed');
       // For cooldown, Apple will reject re-sends for ~1 minute. Lock
       // the button locally so the user doesn't keep tapping.
       // Other rate-limit codes (too_many_*, sms_locked) need much
@@ -241,11 +244,11 @@
         return;
       }
       btnSendSms.disabled = false;
-      btnSendSms.textContent = SMS_RESEND_DEFAULT;
+      btnSendSms.textContent = t('sendSmsDefault');
     } catch (err) {
-      twofaError.textContent = '连接后端服务失败';
+      twofaError.textContent = t('backendConnectFailed');
       btnSendSms.disabled = false;
-      btnSendSms.textContent = SMS_RESEND_DEFAULT;
+      btnSendSms.textContent = t('sendSmsDefault');
     }
   });
 
@@ -345,7 +348,7 @@
 
     // Smart lists — separate row
     SMART_LISTS.forEach((sl) => {
-      createTab(smartContainer, sl.id, sl.icon + ' ' + sl.label, true);
+      createTab(smartContainer, sl.id, sl.icon + ' ' + t(sl.key), true);
     });
 
     // Regular lists
@@ -391,7 +394,7 @@
     const items = getFilteredItems();
 
     if (items.length === 0) {
-      const msg = searchQuery ? '没有匹配的提醒事项' : '没有提醒事项';
+      const msg = searchQuery ? t('noMatch') : t('noReminders');
       const icon = searchQuery ? '&#x1F50D;' : '&#x1F4CB;';
       listContainer.innerHTML = `<div class="empty-state"><div class="icon">${icon}</div><p>${msg}</p></div>`;
       completedSection.style.display = 'none';
@@ -402,7 +405,7 @@
     const completed = items.filter((r) => r.completed);
 
     if (pending.length === 0 && completed.length === 0) {
-      listContainer.innerHTML = '<div class="empty-state"><div class="icon">&#x2705;</div><p>所有事项已完成</p></div>';
+      listContainer.innerHTML = `<div class="empty-state"><div class="icon">&#x2705;</div><p>${t('allCompleted')}</p></div>`;
       completedSection.style.display = 'none';
       return;
     }
@@ -421,8 +424,8 @@
       completedSection.style.display = 'none';
     }
 
-    const displayName = searchQuery ? '搜索结果' : (isSmartList(currentList) ? getSmartListDisplayName(currentList) : currentList);
-    document.getElementById('current-list-title').textContent = displayName;
+    const displayName = searchQuery ? t('searchResults') : (isSmartList(currentList) ? getSmartListDisplayName(currentList) : currentList);
+    document.getElementById('current-list-title').textContent = displayName || t('reminders');
   }
 
   async function toggleReminder(reminder, isCompleted) {
@@ -518,7 +521,7 @@
       if (reminder.flagged) {
         const flag = document.createElement('span');
         flag.className = 'reminder-flag';
-        flag.textContent = '\u2691';
+        flag.textContent = '⚑';
         meta.appendChild(flag);
       }
 
@@ -641,13 +644,13 @@
       dateOnly.setHours(0, 0, 0, 0);
 
       let label;
-      if (dateOnly.getTime() === today.getTime()) label = '今天';
-      else if (dateOnly.getTime() === tomorrow.getTime()) label = '明天';
+      if (dateOnly.getTime() === today.getTime()) label = t('today');
+      else if (dateOnly.getTime() === tomorrow.getTime()) label = t('tomorrow');
       else {
         const diff = Math.round((dateOnly - today) / 86400000);
-        if (diff === -1) label = '昨天';
-        else if (diff > 1 && diff <= 7) label = `${diff} 天后`;
-        else if (diff < -1 && diff >= -7) label = `${Math.abs(diff)} 天前`;
+        if (diff === -1) label = t('yesterday');
+        else if (diff > 1 && diff <= 7) label = t('daysLater', { n: diff });
+        else if (diff < -1 && diff >= -7) label = t('daysAgo', { n: Math.abs(diff) });
         else label = `${date.getMonth() + 1}/${date.getDate()}`;
       }
 
@@ -667,7 +670,8 @@
     const itemCount = document.getElementById('item-count');
 
     const now = new Date();
-    lastUpdated.textContent = `更新于 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    lastUpdated.textContent = t('updatedAt', { time });
 
     if (remindersData && currentList) {
       let pending;
@@ -678,16 +682,17 @@
       } else {
         pending = 0;
       }
-      itemCount.textContent = `${pending} 项待办`;
+      itemCount.textContent = t('itemsPending', { count: pending });
     }
   }
 
   // --- Detail Panel ---
-  const PRIORITY_MAP = {
-    1: { label: '高', cls: 'priority-high' },
-    5: { label: '中', cls: 'priority-medium' },
-    9: { label: '低', cls: 'priority-low' },
-  };
+  function priorityInfo(p) {
+    if (p === 1) return { label: t('priorityHigh'), cls: 'priority-high' };
+    if (p === 5) return { label: t('priorityMedium'), cls: 'priority-medium' };
+    if (p === 9) return { label: t('priorityLow'), cls: 'priority-low' };
+    return null;
+  }
 
   function findListForReminder(reminder) {
     if (!isSmartList(currentList) && !searchQuery) return currentList;
@@ -705,43 +710,43 @@
     const rows = [];
 
     // Title
-    rows.push(makeDetailRow('标题', escapeHtml(reminder.title)));
+    rows.push(makeDetailRow(t('detailTitle'), escapeHtml(reminder.title)));
 
     // Notes
     if (reminder.description) {
-      rows.push(makeDetailRow('备注', `<div class="detail-value description">${escapeHtml(reminder.description)}</div>`, true));
+      rows.push(makeDetailRow(t('detailNotes'), `<div class="detail-value description">${escapeHtml(reminder.description)}</div>`, true));
     } else {
-      rows.push(makeDetailRow('备注', '<span class="detail-value empty">无</span>', true));
+      rows.push(makeDetailRow(t('detailNotes'), `<span class="detail-value empty">${t('none')}</span>`, true));
     }
 
     // Due date
-    const dueDateVal = reminder.due_date ? formatDate(reminder.due_date) : '无';
+    const dueDateVal = reminder.due_date ? formatDate(reminder.due_date) : t('none');
     const dueClass = reminder.due_date ? '' : ' empty';
-    rows.push(makeDetailRow('截止日期', `<span class="detail-value${dueClass}">${escapeHtml(dueDateVal)}</span>`, true));
+    rows.push(makeDetailRow(t('detailDueDate'), `<span class="detail-value${dueClass}">${escapeHtml(dueDateVal)}</span>`, true));
 
     // Priority
-    const pri = PRIORITY_MAP[reminder.priority];
+    const pri = priorityInfo(reminder.priority);
     if (pri) {
-      rows.push(makeDetailRow('优先级', `<span class="detail-priority-badge ${pri.cls}">${pri.label}</span>`, true));
+      rows.push(makeDetailRow(t('detailPriority'), `<span class="detail-priority-badge ${pri.cls}">${pri.label}</span>`, true));
     } else {
-      rows.push(makeDetailRow('优先级', '<span class="detail-value empty">无</span>', true));
+      rows.push(makeDetailRow(t('detailPriority'), `<span class="detail-value empty">${t('none')}</span>`, true));
     }
 
     // Flagged
     if (reminder.flagged) {
-      rows.push(makeDetailRow('标旗', '<span class="detail-flag">\u2691 已标旗</span>', true));
+      rows.push(makeDetailRow(t('detailFlag'), `<span class="detail-flag">${t('flaggedYes')}</span>`, true));
     } else {
-      rows.push(makeDetailRow('标旗', '<span class="detail-value empty">未标旗</span>', true));
+      rows.push(makeDetailRow(t('detailFlag'), `<span class="detail-value empty">${t('flaggedNo')}</span>`, true));
     }
 
     // List
     if (listName) {
-      rows.push(makeDetailRow('所属列表', escapeHtml(listName)));
+      rows.push(makeDetailRow(t('detailList'), escapeHtml(listName)));
     }
 
     // Status
-    const statusText = isCompleted ? '已完成' : '待完成';
-    rows.push(makeDetailRow('状态', statusText));
+    const statusText = isCompleted ? t('statusCompleted') : t('statusPending');
+    rows.push(makeDetailRow(t('detailStatus'), statusText));
 
     body.innerHTML = rows.join('');
     document.getElementById('detail-panel').classList.add('visible');
@@ -815,6 +820,13 @@
   }
 
   // --- Header Actions ---
+  let cachedQuickAddShortcut = 'Ctrl+Alt+N';
+  function updateAddButtonTooltip(shortcut) {
+    if (shortcut) cachedQuickAddShortcut = shortcut;
+    const btn = document.getElementById('btn-add');
+    btn.title = t('quickAddTooltip', { shortcut: cachedQuickAddShortcut });
+  }
+
   document.getElementById('btn-add').addEventListener('click', () => {
     window.api.window.showQuickAdd();
   });
@@ -869,6 +881,8 @@
     if (darkModeSelect) darkModeSelect.value = settings.darkMode || 'system';
     const refreshSelect = document.getElementById('select-refresh-interval');
     if (refreshSelect) refreshSelect.value = String(settings.refreshInterval ?? 5);
+    const localeSelect = document.getElementById('select-locale');
+    if (localeSelect) localeSelect.value = settings.locale || 'system';
     // Show app version
     const version = await window.api.app.getVersion();
     document.getElementById('app-version').textContent = 'v' + version;
@@ -877,6 +891,7 @@
     document.getElementById('shortcut-toggle-panel').querySelector('.shortcut-key-text').textContent = shortcutData.current.togglePanel;
     document.getElementById('shortcut-quick-add').querySelector('.shortcut-key-text').textContent = shortcutData.current.quickAdd;
     document.getElementById('shortcut-error').textContent = '';
+    updateAddButtonTooltip(shortcutData.current.quickAdd);
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -900,6 +915,13 @@
     const interval = Number(e.target.value);
     await window.api.settings.set({ refreshInterval: interval });
     startAutoRefresh(interval);
+  });
+
+  document.getElementById('select-locale').addEventListener('change', async (e) => {
+    const locale = e.target.value;
+    await window.api.settings.set({ locale });
+    const resolved = await window.i18n.resolve(locale);
+    window.i18n.setLocale(resolved);
   });
 
   // --- Shortcuts ---
@@ -935,7 +957,7 @@
     recordingButton = btn;
     previousShortcutText = btn.querySelector('.shortcut-key-text').textContent;
     btn.classList.add('recording');
-    btn.querySelector('.shortcut-key-text').textContent = '请按下快捷键...';
+    btn.querySelector('.shortcut-key-text').textContent = t('recordShortcut');
     document.getElementById('shortcut-error').textContent = '';
     document.addEventListener('keydown', handleShortcutCapture, true);
   }
@@ -970,7 +992,7 @@
     if (e.metaKey) parts.push('Super');
 
     if (parts.length === 0) {
-      document.getElementById('shortcut-error').textContent = '快捷键必须包含修饰键（Ctrl、Alt、Shift）';
+      document.getElementById('shortcut-error').textContent = t('requireModifier');
       return;
     }
 
@@ -989,8 +1011,10 @@
       btn.querySelector('.shortcut-key-text').textContent = accelerator;
       document.getElementById('shortcut-error').textContent = '';
       previousShortcutText = '';
+      if (action === 'quickAdd') updateAddButtonTooltip(accelerator);
     } else {
-      document.getElementById('shortcut-error').textContent = result.error;
+      // Server may return either translated text or an i18n key.
+      document.getElementById('shortcut-error').textContent = result.errorKey ? t(result.errorKey) : (result.error || '');
       btn.querySelector('.shortcut-key-text').textContent = previousShortcutText;
       previousShortcutText = '';
     }
@@ -1009,6 +1033,7 @@
       document.getElementById('shortcut-toggle-panel').querySelector('.shortcut-key-text').textContent = result.shortcuts.togglePanel;
       document.getElementById('shortcut-quick-add').querySelector('.shortcut-key-text').textContent = result.shortcuts.quickAdd;
       document.getElementById('shortcut-error').textContent = '';
+      updateAddButtonTooltip(result.shortcuts.quickAdd);
     }
   });
 
@@ -1023,7 +1048,7 @@
 
   btnCheckUpdate.addEventListener('click', async () => {
     btnCheckUpdate.disabled = true;
-    btnCheckUpdate.textContent = '检查中...';
+    btnCheckUpdate.textContent = t('checkingUpdate');
     await window.api.update.check();
   });
 
@@ -1044,35 +1069,35 @@
 
     switch (data.status) {
       case 'checking':
-        updateStatusText.textContent = '正在检查更新...';
+        updateStatusText.textContent = t('updateChecking');
         break;
       case 'available':
-        updateStatusText.textContent = '发现新版本 v' + data.version;
+        updateStatusText.textContent = t('updateAvailable', { version: data.version });
         btnUpdateDownload.style.display = 'inline-block';
         btnCheckUpdate.disabled = false;
-        btnCheckUpdate.textContent = '检查更新';
+        btnCheckUpdate.textContent = t('checkUpdate');
         break;
       case 'up-to-date':
-        updateStatusText.textContent = '已是最新版本';
+        updateStatusText.textContent = t('upToDate');
         btnCheckUpdate.disabled = false;
-        btnCheckUpdate.textContent = '检查更新';
+        btnCheckUpdate.textContent = t('checkUpdate');
         break;
       case 'downloading':
-        updateStatusText.textContent = '正在下载更新... ' + data.percent + '%';
+        updateStatusText.textContent = t('updateDownloading', { percent: data.percent });
         updateProgress.style.display = 'block';
         updateProgressBar.style.width = data.percent + '%';
         break;
       case 'downloaded':
-        updateStatusText.textContent = '更新已下载，重启后生效';
+        updateStatusText.textContent = t('updateDownloaded');
         updateProgress.style.display = 'none';
         btnUpdateInstall.style.display = 'inline-block';
         btnCheckUpdate.disabled = false;
-        btnCheckUpdate.textContent = '检查更新';
+        btnCheckUpdate.textContent = t('checkUpdate');
         break;
       case 'error':
-        updateStatusText.textContent = '检查更新失败';
+        updateStatusText.textContent = t('updateError');
         btnCheckUpdate.disabled = false;
-        btnCheckUpdate.textContent = '检查更新';
+        btnCheckUpdate.textContent = t('checkUpdate');
         break;
     }
   });
@@ -1085,6 +1110,16 @@
   // Listen for refresh events from main process
   window.api.on('reminders:refresh', async () => {
     await loadReminders();
+  });
+
+  // Re-render dynamic content when locale changes.
+  window.addEventListener('locale-changed', () => {
+    updateAddButtonTooltip();
+    if (remindersData) {
+      renderListTabs();
+      renderReminders();
+      updateStatusBar();
+    }
   });
 
   // --- Dark Mode ---
@@ -1122,7 +1157,15 @@
 
   // --- Init ---
   async function init() {
+    await window.i18n.init();
     await initTheme();
+    // Prime the quick-add tooltip with the current shortcut.
+    try {
+      const shortcutData = await window.api.shortcuts.get();
+      updateAddButtonTooltip(shortcutData.current.quickAdd);
+    } catch {
+      updateAddButtonTooltip();
+    }
     showLoading(true);
     try {
       const result = await window.api.auth.status();

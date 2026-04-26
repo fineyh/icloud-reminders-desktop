@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iCloud 提醒事项</title>
+  <title data-i18n="appTitle">iCloud 提醒事项</title>
   <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
   <!-- Title Bar -->
   <div class="titlebar">
-    <span class="titlebar-title">iCloud 提醒事项</span>
+    <span class="titlebar-title" data-i18n="appTitle">iCloud 提醒事项</span>
     <div class="titlebar-buttons">
-      <button class="titlebar-btn" id="btn-close" title="关闭">&#x2715;</button>
+      <button class="titlebar-btn" id="btn-close" data-i18n-title="close" title="关闭">&#x2715;</button>
     </div>
   </div>
 
@@ -25,27 +25,27 @@
     <!-- Login View -->
     <section class="view" id="login-view">
       <div class="login-header">
-        <h2>登录 iCloud</h2>
-        <p>使用 Apple ID 查看您的提醒事项</p>
+        <h2 data-i18n="loginTitle">登录 iCloud</h2>
+        <p data-i18n="loginSubtitle">使用 Apple ID 查看您的提醒事项</p>
       </div>
       <form class="login-form" id="login-form">
         <div class="input-group">
-          <label for="email">Apple ID（邮箱或手机号）</label>
-          <input type="text" id="email" placeholder="手机号 / example@icloud.com" autocomplete="username" required>
+          <label for="email" data-i18n="appleIdLabel">Apple ID（邮箱或手机号）</label>
+          <input type="text" id="email" data-i18n-placeholder="appleIdPlaceholder" placeholder="手机号 / example@icloud.com" autocomplete="username" required>
         </div>
         <div class="input-group">
-          <label for="password">密码</label>
-          <input type="password" id="password" placeholder="输入密码" autocomplete="current-password" required>
+          <label for="password" data-i18n="passwordLabel">密码</label>
+          <input type="password" id="password" data-i18n-placeholder="passwordPlaceholder" placeholder="输入密码" autocomplete="current-password" required>
         </div>
         <div class="checkbox-group">
           <input type="checkbox" id="remember" checked>
-          <label for="remember">记住我</label>
+          <label for="remember" data-i18n="rememberMe">记住我</label>
         </div>
         <div class="checkbox-group">
           <input type="checkbox" id="use-international">
-          <label for="use-international">使用国际端点（手机号账号被风控/503 时勾选）</label>
+          <label for="use-international" data-i18n="useInternational">使用国际端点（手机号账号被风控/503 时勾选）</label>
         </div>
-        <button type="submit" class="btn btn-primary" id="btn-login">登录</button>
+        <button type="submit" class="btn btn-primary" id="btn-login" data-i18n="login">登录</button>
         <div class="error-msg" id="login-error"></div>
       </form>
     </section>
@@ -53,8 +53,8 @@
     <!-- 2FA View -->
     <section class="view" id="twofa-view">
       <div class="twofa-header">
-        <h2>双重认证</h2>
-        <p>请输入发送到您受信任设备上的验证码</p>
+        <h2 data-i18n="twofaTitle">双重认证</h2>
+        <p data-i18n="twofaSubtitle">请输入发送到您受信任设备上的验证码</p>
       </div>
       <div class="code-input-wrapper" id="code-inputs">
         <input type="text" maxlength="1" data-index="0" inputmode="numeric">
@@ -64,24 +64,24 @@
         <input type="text" maxlength="1" data-index="4" inputmode="numeric">
         <input type="text" maxlength="1" data-index="5" inputmode="numeric">
       </div>
-      <button class="btn btn-primary" id="btn-verify">验证</button>
+      <button class="btn btn-primary" id="btn-verify" data-i18n="verify">验证</button>
       <div class="error-msg" id="twofa-error"></div>
-      <button class="btn btn-text" id="btn-send-sms" style="margin-top: 12px;">收不到弹窗？发送短信验证码</button>
+      <button class="btn btn-text" id="btn-send-sms" style="margin-top: 12px;" data-i18n="sendSmsDefault">收不到弹窗？发送短信验证码</button>
       <div class="info-msg" id="twofa-info" style="margin-top: 8px; color: #666; font-size: 12px;"></div>
-      <button class="btn btn-text" id="btn-back-login" style="margin-top: 12px;">返回登录</button>
+      <button class="btn btn-text" id="btn-back-login" style="margin-top: 12px;" data-i18n="backToLogin">返回登录</button>
     </section>
 
     <!-- Settings View -->
     <section class="view" id="settings-view">
       <div class="settings-header">
         <button class="settings-back-btn" id="btn-settings-back">&#x2190;</button>
-        <h3>设置</h3>
+        <h3 data-i18n="settings">设置</h3>
       </div>
       <div class="settings-body">
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">开机自启动</span>
-            <span class="settings-item-desc">登录 Windows 时自动启动应用</span>
+            <span class="settings-item-label" data-i18n="autoLaunch">开机自启动</span>
+            <span class="settings-item-desc" data-i18n="autoLaunchDesc">登录 Windows 时自动启动应用</span>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="toggle-auto-launch">
@@ -90,8 +90,8 @@
         </div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">到期提醒通知</span>
-            <span class="settings-item-desc">提醒事项到期时弹出桌面通知</span>
+            <span class="settings-item-label" data-i18n="notifications">到期提醒通知</span>
+            <span class="settings-item-desc" data-i18n="notificationsDesc">提醒事项到期时弹出桌面通知</span>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="toggle-notifications">
@@ -100,8 +100,8 @@
         </div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">今日待办汇总</span>
-            <span class="settings-item-desc">每天首次加载时通知当天到期的事项</span>
+            <span class="settings-item-label" data-i18n="dailySummary">今日待办汇总</span>
+            <span class="settings-item-desc" data-i18n="dailySummaryDesc">每天首次加载时通知当天到期的事项</span>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="toggle-daily-summary">
@@ -110,33 +110,44 @@
         </div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">外观模式</span>
-            <span class="settings-item-desc">切换亮色 / 暗色主题</span>
+            <span class="settings-item-label" data-i18n="themeMode">外观模式</span>
+            <span class="settings-item-desc" data-i18n="themeModeDesc">切换亮色 / 暗色主题</span>
           </div>
           <select class="theme-select" id="select-dark-mode">
-            <option value="system">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
+            <option value="system" data-i18n="themeSystem">跟随系统</option>
+            <option value="light" data-i18n="themeLight">浅色</option>
+            <option value="dark" data-i18n="themeDark">深色</option>
           </select>
         </div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">自动刷新间隔</span>
-            <span class="settings-item-desc">定时从 iCloud 同步最新提醒事项</span>
+            <span class="settings-item-label" data-i18n="refreshInterval">自动刷新间隔</span>
+            <span class="settings-item-desc" data-i18n="refreshIntervalDesc">定时从 iCloud 同步最新提醒事项</span>
           </div>
           <select class="theme-select" id="select-refresh-interval">
-            <option value="1">1 分钟</option>
-            <option value="5">5 分钟</option>
-            <option value="15">15 分钟</option>
-            <option value="0">仅手动刷新</option>
+            <option value="1" data-i18n="refresh1m">1 分钟</option>
+            <option value="5" data-i18n="refresh5m">5 分钟</option>
+            <option value="15" data-i18n="refresh15m">15 分钟</option>
+            <option value="0" data-i18n="refreshManual">仅手动刷新</option>
+          </select>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <span class="settings-item-label" data-i18n="language">语言</span>
+            <span class="settings-item-desc" data-i18n="languageDesc">选择应用界面语言</span>
+          </div>
+          <select class="theme-select" id="select-locale">
+            <option value="system" data-i18n="localeSystem">跟随系统</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="en">English</option>
           </select>
         </div>
         <div class="settings-divider"></div>
-        <div class="settings-section-title">快捷键</div>
+        <div class="settings-section-title" data-i18n="shortcutsSection">快捷键</div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">显示/隐藏面板</span>
-            <span class="settings-item-desc">全局快捷键，在任意位置切换面板窗口</span>
+            <span class="settings-item-label" data-i18n="shortcutTogglePanel">显示/隐藏面板</span>
+            <span class="settings-item-desc" data-i18n="shortcutTogglePanelDesc">全局快捷键，在任意位置切换面板窗口</span>
           </div>
           <button class="shortcut-key-btn" id="shortcut-toggle-panel" data-action="togglePanel">
             <span class="shortcut-key-text">Ctrl+Alt+R</span>
@@ -144,8 +155,8 @@
         </div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">快速添加</span>
-            <span class="settings-item-desc">全局快捷键，打开快速添加提醒窗口</span>
+            <span class="settings-item-label" data-i18n="shortcutQuickAdd">快速添加</span>
+            <span class="settings-item-desc" data-i18n="shortcutQuickAddDesc">全局快捷键，打开快速添加提醒窗口</span>
           </div>
           <button class="shortcut-key-btn" id="shortcut-quick-add" data-action="quickAdd">
             <span class="shortcut-key-text">Ctrl+Alt+N</span>
@@ -155,23 +166,23 @@
           <div class="settings-item-info">
             <span class="settings-item-desc shortcut-error" id="shortcut-error"></span>
           </div>
-          <button class="btn btn-small" id="btn-shortcut-reset">恢复默认</button>
+          <button class="btn btn-small" id="btn-shortcut-reset" data-i18n="resetDefault">恢复默认</button>
         </div>
         <div class="settings-divider"></div>
         <div class="settings-item">
           <div class="settings-item-info">
-            <span class="settings-item-label">当前版本</span>
+            <span class="settings-item-label" data-i18n="currentVersion">当前版本</span>
             <span class="settings-item-desc" id="app-version">--</span>
           </div>
-          <button class="btn btn-small" id="btn-check-update">检查更新</button>
+          <button class="btn btn-small" id="btn-check-update" data-i18n="checkUpdate">检查更新</button>
         </div>
         <div class="update-status" id="update-status" style="display: none;">
           <span class="update-status-text" id="update-status-text"></span>
           <div class="update-progress" id="update-progress" style="display: none;">
             <div class="update-progress-bar" id="update-progress-bar"></div>
           </div>
-          <button class="btn btn-small btn-primary" id="btn-update-download" style="display: none;">下载更新</button>
-          <button class="btn btn-small btn-primary" id="btn-update-install" style="display: none;">立即安装</button>
+          <button class="btn btn-small btn-primary" id="btn-update-download" style="display: none;" data-i18n="downloadUpdate">下载更新</button>
+          <button class="btn btn-small btn-primary" id="btn-update-install" style="display: none;" data-i18n="installUpdate">立即安装</button>
         </div>
       </div>
     </section>
@@ -179,23 +190,23 @@
     <!-- Reminders View -->
     <section class="view" id="reminders-view">
       <div class="reminders-header">
-        <h3 id="current-list-title">提醒事项</h3>
+        <h3 id="current-list-title" data-i18n="reminders">提醒事项</h3>
         <div class="header-actions">
           <button class="header-btn" id="btn-add" title="快速添加 (Ctrl+Alt+N)">&#x2795;</button>
-          <button class="header-btn" id="btn-refresh" title="刷新">&#x21BB;</button>
-          <button class="header-btn" id="btn-pin" title="置顶">&#x1F4CC;</button>
-          <button class="header-btn" id="btn-mini" title="迷你窗口">&#x2750;</button>
+          <button class="header-btn" id="btn-refresh" data-i18n-title="refresh" title="刷新">&#x21BB;</button>
+          <button class="header-btn" id="btn-pin" data-i18n-title="pin" title="置顶">&#x1F4CC;</button>
+          <button class="header-btn" id="btn-mini" data-i18n-title="miniWindow" title="迷你窗口">&#x2750;</button>
           <div style="position: relative;">
-            <button class="header-btn" id="btn-menu" title="菜单">&#x22EE;</button>
+            <button class="header-btn" id="btn-menu" data-i18n-title="menu" title="菜单">&#x22EE;</button>
             <div class="dropdown-menu" id="dropdown-menu">
-              <button class="dropdown-item" id="btn-settings">设置</button>
-              <button class="dropdown-item danger" id="btn-logout">退出登录</button>
+              <button class="dropdown-item" id="btn-settings" data-i18n="settings">设置</button>
+              <button class="dropdown-item danger" id="btn-logout" data-i18n="logout">退出登录</button>
             </div>
           </div>
         </div>
       </div>
       <div class="search-bar" id="search-bar">
-        <input type="text" id="search-input" placeholder="搜索提醒事项..." autocomplete="off">
+        <input type="text" id="search-input" data-i18n-placeholder="searchPlaceholder" placeholder="搜索提醒事项..." autocomplete="off">
         <button class="search-clear" id="search-clear" style="display:none;">&#x2715;</button>
       </div>
       <div class="smart-tabs" id="smart-tabs"></div>
@@ -204,7 +215,7 @@
       <div class="completed-section" id="completed-section" style="display: none;">
         <button class="completed-toggle" id="completed-toggle">
           <span class="arrow">&#x25B6;</span>
-          <span>已完成 (<span id="completed-count">0</span>)</span>
+          <span><span data-i18n="completed">已完成</span> (<span id="completed-count">0</span>)</span>
         </button>
         <div class="completed-items" id="completed-items"></div>
       </div>
@@ -215,13 +226,14 @@
       <div class="detail-panel" id="detail-panel">
         <div class="detail-header">
           <button class="settings-back-btn" id="detail-back">&#x2190;</button>
-          <h3>详细信息</h3>
+          <h3 data-i18n="details">详细信息</h3>
         </div>
         <div class="detail-body" id="detail-body"></div>
       </div>
     </section>
   </div>
 
+  <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

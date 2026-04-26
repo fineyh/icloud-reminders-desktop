@@ -1,5 +1,6 @@
 const { globalShortcut } = require('electron');
 const Store = require('electron-store');
+const { t } = require('./i18n');
 
 const store = new Store();
 
@@ -81,14 +82,14 @@ function validateShortcut(accelerator, action) {
   const modifiers = ['Ctrl', 'Alt', 'Shift', 'Super', 'Meta', 'Command', 'CmdOrCtrl'];
   const hasModifier = modifiers.some((mod) => accelerator.includes(mod));
   if (!hasModifier) {
-    return { valid: false, error: '快捷键必须包含修饰键（Ctrl、Alt、Shift）' };
+    return { valid: false, error: t('requireModifier') };
   }
 
   // Check for duplicate with other actions
   const shortcuts = getShortcuts();
   for (const [key, value] of Object.entries(shortcuts)) {
     if (key !== action && value.toLowerCase() === accelerator.toLowerCase()) {
-      return { valid: false, error: '该快捷键已被其他功能使用' };
+      return { valid: false, error: t('shortcutDuplicate') };
     }
   }
 

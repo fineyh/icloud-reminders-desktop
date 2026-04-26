@@ -3,31 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>提醒事项</title>
+  <title data-i18n="reminders">提醒事项</title>
   <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/mini.css">
 </head>
 <body>
   <!-- Mini Title Bar -->
   <div class="mini-titlebar">
-    <span class="mini-titlebar-title">提醒事项</span>
+    <span class="mini-titlebar-title" data-i18n="reminders">提醒事项</span>
     <div class="mini-titlebar-buttons">
-      <button class="mini-btn" id="btn-pin" title="置顶">&#x1F4CC;</button>
-      <button class="mini-btn" id="btn-minimize" title="最小化">&#x2500;</button>
-      <button class="mini-btn" id="btn-close" title="关闭">&#x2715;</button>
+      <button class="mini-btn" id="btn-pin" data-i18n-title="pin" title="置顶">&#x1F4CC;</button>
+      <button class="mini-btn" id="btn-minimize" data-i18n-title="minimize" title="最小化">&#x2500;</button>
+      <button class="mini-btn" id="btn-close" data-i18n-title="close" title="关闭">&#x2715;</button>
     </div>
   </div>
 
   <div class="mini-content" id="mini-content">
     <div class="mini-login-prompt" id="mini-login-prompt" style="display: none;">
-      <p>请先在主面板登录 iCloud</p>
+      <p data-i18n="miniLoginPrompt">请先在主面板登录 iCloud</p>
     </div>
     <div class="mini-empty" id="mini-empty" style="display: none;">
-      <p>没有待办事项</p>
+      <p data-i18n="miniEmpty">没有待办事项</p>
     </div>
     <div id="mini-list"></div>
   </div>
 
+  <script src="js/i18n.js"></script>
   <script src="js/mini-app.js"></script>
 </body>
 </html>

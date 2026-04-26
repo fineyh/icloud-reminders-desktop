@@ -44,9 +44,10 @@ contextBridge.exposeInMainWorld('api', {
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:version'),
+    getSystemLocale: () => ipcRenderer.invoke('app:system-locale'),
   },
   on: (channel, callback) => {
-    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed', 'quick-add:show', 'update:status'];
+    const validChannels = ['reminders:update', 'reminders:refresh', 'theme-changed', 'quick-add:show', 'update:status', 'locale-changed'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args));
     }

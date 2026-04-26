@@ -1,46 +1,46 @@
-const { Tray, Menu, nativeImage } = require('electron');
+const { Tray, Menu } = require('electron');
 const path = require('path');
+const { t } = require('./i18n');
 
 let tray = null;
+let trayCallbacks = null;
 
-function createTray({ onTogglePanel, onToggleMini, onRefresh, onQuit }) {
+function buildContextMenu() {
+  if (!trayCallbacks) return Menu.buildFromTemplate([]);
+  return Menu.buildFromTemplate([
+    { label: t('trayShow'), click: trayCallbacks.onTogglePanel },
+    { label: t('trayMini'), click: trayCallbacks.onToggleMini },
+    { type: 'separator' },
+    { label: t('trayRefresh'), click: trayCallbacks.onRefresh },
+    { type: 'separator' },
+    { label: t('trayQuit'), click: trayCallbacks.onQuit },
+  ]);
+}
+
+function createTray(callbacks) {
+  trayCallbacks = callbacks;
   const iconPath = path.join(__dirname, '..', 'renderer', 'assets', 'tray-icon.ico');
   tray = new Tray(iconPath);
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '显示提醒',
-      click: onTogglePanel,
-    },
-    {
-      label: '迷你窗口',
-      click: onToggleMini,
-    },
-    { type: 'separator' },
-    {
-      label: '刷新',
-      click: onRefresh,
-    },
-    { type: 'separator' },
-    {
-      label: '退出',
-      click: onQuit,
-    },
-  ]);
-
-  tray.setToolTip('iCloud 提醒事项');
-  tray.setContextMenu(contextMenu);
+  tray.setToolTip(t('appTitle'));
+  tray.setContextMenu(buildContextMenu());
 
   // Left click toggles panel
   tray.on('click', () => {
-    onTogglePanel();
+    callbacks.onTogglePanel();
   });
 
   return tray;
+}
+
+function rebuildTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  tray.setToolTip(t('appTitle'));
+  tray.setContextMenu(buildContextMenu());
 }
 
 function getTray() {
   return tray;
 }
 
-module.exports = { createTray, getTray };
+module.exports = { createTray, getTray, rebuildTrayMenu };

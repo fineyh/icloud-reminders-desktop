@@ -4,6 +4,8 @@ const Store = require('electron-store');
 const { getBackendUrl } = require('./python-bridge');
 const { toggleMiniWindow, togglePanelAlwaysOnTop, toggleMiniAlwaysOnTop, getPanelWindow, getMiniWindow, getQuickAddWindow, showQuickAdd } = require('./windows');
 const { getShortcuts, validateShortcut, reregisterShortcuts, DEFAULT_SHORTCUTS } = require('./shortcuts');
+const { t: tr } = require('./i18n');
+const { rebuildTrayMenu } = require('./tray');
 
 const store = new Store();
 
@@ -83,7 +85,7 @@ function setupIpcHandlers() {
           if (diffMs <= 5 * 60 * 1000 && diffMs > -24 * 60 * 60 * 1000) {
             notifiedReminders.add(item.recordName);
             const notification = new Notification({
-              title: '提醒事项到期',
+              title: tr('notifyDueTitle'),
               body: item.title + (listName ? ` (${listName})` : ''),
               icon: iconPath,
             });
@@ -117,12 +119,12 @@ function setupIpcHandlers() {
         if (todayItems.length > 0) {
           lastDailySummaryDate = todayStr;
           const titles = todayItems.slice(0, 3).map((i) => i.title);
-          let body = titles.join('、');
+          let body = titles.join(tr('notifyDailySeparator'));
           if (todayItems.length > 3) {
-            body += ` 等 ${todayItems.length} 项`;
+            body += tr('notifyDailyEtc', { count: todayItems.length });
           }
           const notification = new Notification({
-            title: `今日有 ${todayItems.length} 项提醒事项到期`,
+            title: tr('notifyDailyTitle', { count: todayItems.length }),
             body,
             icon: iconPath,
           });
@@ -231,6 +233,7 @@ function setupIpcHandlers() {
       dailySummaryEnabled: store.get('dailySummaryEnabled', true),
       darkMode: store.get('darkMode', 'system'),
       refreshInterval: store.get('refreshInterval', 5),
+      locale: store.get('locale', 'system'),
     };
   });
 
@@ -250,8 +253,29 @@ function setupIpcHandlers() {
     if (typeof settings.refreshInterval === 'number') {
       store.set('refreshInterval', settings.refreshInterval);
     }
+    if (typeof settings.locale === 'string') {
+      store.set('locale', settings.locale);
+      // Refresh main-process UI (tray) and notify renderers.
+      rebuildTrayMenu();
+      broadcastLocaleChanged();
+    }
     return { ok: true };
   });
+
+  function broadcastLocaleChanged() {
+    const panel = getPanelWindow();
+    if (panel && !panel.isDestroyed()) {
+      panel.webContents.send('locale-changed');
+    }
+    const miniWin = getMiniWindow();
+    if (miniWin && !miniWin.isDestroyed()) {
+      miniWin.webContents.send('locale-changed');
+    }
+    const qaWin = getQuickAddWindow();
+    if (qaWin && !qaWin.isDestroyed()) {
+      qaWin.webContents.send('locale-changed');
+    }
+  }
 
   ipcMain.handle('settings:get-system-theme', async () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
@@ -280,7 +304,7 @@ function setupIpcHandlers() {
       // Registration failed, revert
       store.set('shortcuts', previous);
       reregisterShortcuts();
-      return { ok: false, error: '该快捷键已被其他应用占用' };
+      return { ok: false, error: tr('shortcutTaken') };
     }
 
     return { ok: true };
@@ -295,6 +319,10 @@ function setupIpcHandlers() {
   // --- Update ---
   ipcMain.handle('app:version', () => {
     return app.getVersion();
+  });
+
+  ipcMain.handle('app:system-locale', () => {
+    return app.getLocale();
   });
 
   ipcMain.handle('update:check', async () => {

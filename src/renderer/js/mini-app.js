@@ -4,6 +4,10 @@
   const miniEmpty = document.getElementById('mini-empty');
   const miniLoginPrompt = document.getElementById('mini-login-prompt');
 
+  const t = (key, params) => window.i18n.t(key, params);
+
+  let lastData = null;
+
   // Titlebar buttons
   document.getElementById('btn-pin').addEventListener('click', async () => {
     const result = await window.api.window.toggleMiniPin();
@@ -19,6 +23,7 @@
   });
 
   function renderReminders(data) {
+    lastData = data;
     miniList.innerHTML = '';
     miniEmpty.style.display = 'none';
     miniLoginPrompt.style.display = 'none';
@@ -64,8 +69,8 @@
             const result = await window.api.reminders.complete(reminder.recordName, reminder.recordChangeTag);
             if (result.status === 'ok') {
               // Reload from server to get fresh data
-              const data = await window.api.reminders.fetch();
-              renderReminders(data);
+              const fresh = await window.api.reminders.fetch();
+              renderReminders(fresh);
             }
           } catch (err) {
             console.error('Failed to complete reminder:', err);
@@ -84,7 +89,7 @@
       if (reminder.flagged) {
         const flag = document.createElement('span');
         flag.className = 'mini-flag';
-        flag.textContent = '\u2691';
+        flag.textContent = '⚑';
         el.appendChild(flag);
       }
 
@@ -122,9 +127,9 @@
 
       const diff = Math.round((dateOnly - today) / 86400000);
       let label;
-      if (diff === 0) label = '今天';
-      else if (diff === 1) label = '明天';
-      else if (diff === -1) label = '昨天';
+      if (diff === 0) label = t('today');
+      else if (diff === 1) label = t('tomorrow');
+      else if (diff === -1) label = t('yesterday');
       else label = `${date.getMonth() + 1}/${date.getDate()}`;
 
       if (hasTime) {
@@ -141,6 +146,11 @@
   // Listen for data updates from main process
   window.api.on('reminders:update', (data) => {
     renderReminders(data);
+  });
+
+  // Re-render when locale changes.
+  window.addEventListener('locale-changed', () => {
+    if (lastData) renderReminders(lastData);
   });
 
   // --- Dark Mode ---
@@ -164,8 +174,14 @@
     }
   });
 
+  // Listen for locale-changed pushed from main process.
+  window.api.on('locale-changed', async () => {
+    await window.i18n.init();
+  });
+
   // Initial load
   async function init() {
+    await window.i18n.init();
     // Apply theme first
     try {
       const settings = await window.api.settings.get();

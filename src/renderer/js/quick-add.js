@@ -5,6 +5,8 @@
   const btnAdd = document.getElementById('btn-add');
   const statusMsg = document.getElementById('status-msg');
 
+  const t = (key, params) => window.i18n.t(key, params);
+
   let listsLoaded = false;
   let submitting = false;
 
@@ -18,8 +20,6 @@
     document.documentElement.setAttribute('data-theme', theme);
   }
 
-  initTheme();
-
   window.api.on('theme-changed', (systemTheme) => {
     window.api.settings.get().then((s) => {
       const mode = s.darkMode || 'system';
@@ -28,18 +28,23 @@
     });
   });
 
+  // Listen for locale-changed pushed from main process.
+  window.api.on('locale-changed', async () => {
+    await window.i18n.init();
+  });
+
   // --- Load lists ---
   async function loadLists() {
     try {
       const result = await window.api.reminders.lists();
       if (result.error) {
-        listSelect.innerHTML = '<option value="">无法加载列表</option>';
+        listSelect.innerHTML = `<option value="">${t('listLoadFailed')}</option>`;
         return;
       }
 
       const names = result.names || [];
       if (names.length === 0) {
-        listSelect.innerHTML = '<option value="">无可用列表</option>';
+        listSelect.innerHTML = `<option value="">${t('listEmpty')}</option>`;
         return;
       }
 
@@ -52,11 +57,9 @@
       });
       listsLoaded = true;
     } catch (err) {
-      listSelect.innerHTML = '<option value="">加载失败</option>';
+      listSelect.innerHTML = `<option value="">${t('listLoadError')}</option>`;
     }
   }
-
-  loadLists();
 
   // --- Show event (refocus + reload) ---
   window.api.on('quick-add:show', () => {
@@ -74,7 +77,7 @@
     const listName = listSelect.value;
     submitting = true;
     btnAdd.disabled = true;
-    setStatus('正在创建...', 'loading');
+    setStatus(t('creating'), 'loading');
 
     try {
       const result = await window.api.reminders.create(title, listName);
@@ -85,7 +88,7 @@
         return;
       }
 
-      setStatus('已添加', 'success');
+      setStatus(t('added'), 'success');
       titleInput.value = '';
 
       // Close after brief feedback
@@ -95,7 +98,7 @@
         await window.api.window.closeQuickAdd();
       }, 500);
     } catch (err) {
-      setStatus('创建失败: ' + err.message, 'error');
+      setStatus(t('createFailed', { message: err.message }), 'error');
       submitting = false;
       btnAdd.disabled = false;
     }
@@ -124,4 +127,11 @@
     statusMsg.textContent = text;
     statusMsg.className = 'quick-add-status' + (type ? ' ' + type : '');
   }
+
+  // Init: i18n first, then theme + lists.
+  (async () => {
+    await window.i18n.init();
+    await initTheme();
+    await loadLists();
+  })();
 })();
