@@ -93,6 +93,7 @@
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const remember = document.getElementById('remember').checked;
+    const useInternational = document.getElementById('use-international').checked;
 
     if (!email || !password) return;
 
@@ -101,7 +102,7 @@
     btnLogin.textContent = '登录中...';
 
     try {
-      const result = await window.api.auth.login(email, password, remember);
+      const result = await window.api.auth.login(email, password, remember, useInternational);
       if (result.status === 'ok') {
         await loadReminders();
         showView('reminders');
@@ -191,6 +192,31 @@
     } finally {
       btnVerify.disabled = false;
       btnVerify.textContent = '验证';
+    }
+  });
+
+  const btnSendSms = document.getElementById('btn-send-sms');
+  const twofaInfo = document.getElementById('twofa-info');
+  btnSendSms.addEventListener('click', async () => {
+    twofaError.textContent = '';
+    twofaInfo.textContent = '';
+    btnSendSms.disabled = true;
+    const original = btnSendSms.textContent;
+    btnSendSms.textContent = '发送中...';
+    try {
+      const result = await window.api.auth.sendSmsCode();
+      if (result.status === 'ok') {
+        const tail = result.phone_tail ? `尾号 ${result.phone_tail}` : '受信任手机号';
+        twofaInfo.textContent = `已请求发送短信验证码到${tail}，请在下方输入收到的 6 位数字`;
+        focusFirstCodeInput();
+      } else {
+        twofaError.textContent = result.message || '发送短信失败';
+      }
+    } catch (err) {
+      twofaError.textContent = '连接后端服务失败';
+    } finally {
+      btnSendSms.disabled = false;
+      btnSendSms.textContent = original;
     }
   });
 

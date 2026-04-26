@@ -3,8 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   auth: {
     status: () => ipcRenderer.invoke('auth:status'),
-    login: (email, password, remember) => ipcRenderer.invoke('auth:login', email, password, remember),
+    login: (email, password, remember, useInternational) => ipcRenderer.invoke('auth:login', email, password, remember, useInternational),
     verify2fa: (code) => ipcRenderer.invoke('auth:2fa', code),
+    sendSmsCode: () => ipcRenderer.invoke('auth:send-sms'),
     logout: () => ipcRenderer.invoke('auth:logout'),
   },
   reminders: {

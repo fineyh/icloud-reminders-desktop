@@ -2,6 +2,10 @@ import os
 import logging
 
 from pyicloud import PyiCloudService
+from pyicloud.exceptions import (
+    PyiCloudAPIResponseException,
+    PyiCloudFailedLoginException,
+)
 from config import COOKIE_DIR
 from credentials import save_credentials, get_credentials, delete_credentials
 
@@ -15,6 +19,71 @@ logging.basicConfig(
 _log = logging.getLogger("auth")
 
 _api = None
+
+
+class _HybridChinaPyiCloud(PyiCloudService):
+    """Login via international IDMSA, but talk to the China data cluster.
+
+    For +86 phone-number Apple IDs, idmsa.apple.com.cn rate-limits hard
+    (503), but the account's reminders/calendar/etc. live on the China
+    CloudKit cluster. When we authenticate via international IDMSA and
+    then POST setup.icloud.com/accountLogin, Apple returns a 302 toward
+    setup.icloud.com.cn that pyicloud doesn't follow, leaving webservices
+    unpopulated. Pinning the data endpoints to .cn skips the redirect:
+    the international IDMSA token is presented directly to the China
+    setup endpoint, and Apple honors it (the 302 was the hint).
+    """
+
+    def _setup_endpoints(self) -> None:
+        super()._setup_endpoints()
+        # IDMSA stays international (no 503 for +86 accounts).
+        # Setup/home pinned to China cluster (where the data actually is).
+        self._home_endpoint = "https://www.icloud.com.cn"
+        self._setup_endpoint = "https://setup.icloud.com.cn/setup/ws/1"
+
+
+class _ResumeOnlyPyiCloud(PyiCloudService):
+    """PyiCloudService that refuses SRP fallback during resume.
+
+    pyicloud's authenticate() silently retries with full SRP (password) auth
+    when the saved session token is rejected. For resumes that's harmful: it
+    burns Apple's anti-abuse quota — phone-number Apple IDs on idmsa.apple.com.cn
+    get throttled (503), which pyicloud reports as "Invalid email/password
+    combination" and the user thinks the password is wrong.
+
+    Resumes should reuse cookies or fail cleanly so the user re-enters
+    credentials manually.
+    """
+
+    def _srp_authentication(self) -> None:
+        raise PyiCloudFailedLoginException(
+            "Session expired; user must re-enter credentials."
+        )
+
+
+def _classify_login_exception(exc: BaseException):
+    """Walk the exception chain looking for an HTTP 5xx from Apple.
+
+    Returns ('rate_limited', status) for 5xx, else ('credentials', None).
+    """
+    seen = set()
+    cur = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, PyiCloudAPIResponseException):
+            code = cur.code
+            try:
+                code_int = int(code) if code is not None else None
+            except (TypeError, ValueError):
+                code_int = None
+            if code_int is not None and 500 <= code_int < 600:
+                return ("rate_limited", code_int)
+        resp = getattr(cur, "response", None)
+        status = getattr(resp, "status_code", None)
+        if isinstance(status, int) and 500 <= status < 600:
+            return ("rate_limited", status)
+        cur = cur.__cause__ or cur.__context__
+    return ("credentials", None)
 
 
 def get_api():
@@ -63,38 +132,98 @@ def _is_china_mainland(account):
     return account.lower().endswith(china_domains)
 
 
-def login(email, password, remember=False):
+def login(email, password, remember=False, use_international=False):
     """
     Authenticate with iCloud.
     Returns dict with status: 'ok', '2fa_required', or 'error'.
+
+    use_international=True forces the international endpoint
+    (idmsa.apple.com) instead of the China endpoint
+    (idmsa.apple.com.cn). Useful when phone-number Apple IDs
+    are throttled (503) on the China endpoint.
     """
     global _api
     try:
-        _api = PyiCloudService(
-            email, password,
-            cookie_directory=COOKIE_DIR,
-            china_mainland=_is_china_mainland(email),
-        )
+        if use_international:
+            # Hybrid: international IDMSA + China data cluster
+            _api = _HybridChinaPyiCloud(
+                email, password,
+                cookie_directory=COOKIE_DIR,
+                china_mainland=False,
+            )
+        else:
+            _api = PyiCloudService(
+                email, password,
+                cookie_directory=COOKIE_DIR,
+                china_mainland=_is_china_mainland(email),
+            )
         if remember:
-            save_credentials(email, password)
-
-        # Debug: log all 2FA-related state
-        _log.info(f"[LOGIN] requires_2fa={_api.requires_2fa}")
-        _log.info(f"[LOGIN] requires_2sa={_api.requires_2sa}")
-        _log.info(f"[LOGIN] _requires_mfa={getattr(_api, '_requires_mfa', 'N/A')}")
-        _log.info(f"[LOGIN] _auth_data={getattr(_api, '_auth_data', 'N/A')}")
-        _log.info(f"[LOGIN] is_trusted_session={_api.is_trusted_session}")
-        _log.info(f"[LOGIN] hsaChallengeRequired={_api.data.get('hsaChallengeRequired', 'N/A')}")
-        _log.info(f"[LOGIN] hsaVersion={_api.data.get('dsInfo', {}).get('hsaVersion', 'N/A')}")
-        _log.info(f"[LOGIN] hsaTrustedBrowser={_api.data.get('hsaTrustedBrowser', 'N/A')}")
-        _log.info(f"[LOGIN] _needs_2fa result={_needs_2fa(_api)}")
+            save_credentials(email, password, use_international=use_international)
 
         if _needs_2fa(_api):
             return {"status": "2fa_required"}
-        else:
-            return {"status": "ok"}
+        return {"status": "ok"}
     except Exception as e:
         _api = None
+        kind, status = _classify_login_exception(e)
+        _log.info(f"[LOGIN] Exception classified as {kind} (status={status}): {e}")
+        if kind == "rate_limited":
+            return {
+                "status": "error",
+                "code": "rate_limited",
+                "message": (
+                    "Apple 登录服务暂时拒绝了登录请求（HTTP "
+                    f"{status}）。这通常是短时间多次登录触发的限流，"
+                    "请等待 15-60 分钟后再试，期间不要反复重启 App。"
+                ),
+            }
+        return {"status": "error", "message": str(e)}
+
+
+def request_sms_code():
+    """Ask Apple to SMS a 6-digit code to the trusted phone number.
+
+    Used as a fallback when the system push to trusted Apple devices
+    never arrives — common for +86 phone-number Apple IDs when login
+    went through the international IDMSA endpoint, because the push
+    can't always cross to the China APNs cluster.
+
+    On success, also flips _auth_data['mode'] to 'sms' so a subsequent
+    validate_2fa_code(code) routes through pyicloud's _validate_sms_code.
+    """
+    global _api
+    if _api is None:
+        return {"status": "error", "message": "Not authenticated. Please login first."}
+    auth_data = getattr(_api, "_auth_data", None) or {}
+    phone = auth_data.get("trustedPhoneNumber")
+    if not phone:
+        pnv = auth_data.get("phoneNumberVerification") or {}
+        phone = pnv.get("trustedPhoneNumber")
+        if not phone:
+            numbers = pnv.get("trustedPhoneNumbers") or []
+            phone = numbers[0] if numbers else None
+    if not phone:
+        return {"status": "error", "message": "No trusted phone number available."}
+    try:
+        headers = _api._get_auth_headers({"Accept": "application/json"})
+        body = {
+            "phoneNumber": {
+                "id": phone.get("id", 1),
+                "nonFTEU": phone.get("nonFTEU", True),
+            },
+            "mode": "sms",
+        }
+        _api.session.put(
+            f"{_api._auth_endpoint}/verify/phone",
+            json=body,
+            headers=headers,
+        )
+        _api._auth_data["mode"] = "sms"
+        if "trustedPhoneNumber" not in _api._auth_data:
+            _api._auth_data["trustedPhoneNumber"] = phone
+        last_two = phone.get("lastTwoDigits", "")
+        return {"status": "ok", "phone_tail": last_two}
+    except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
@@ -107,12 +236,12 @@ def validate_2fa(code):
     if _api is None:
         return {"status": "error", "message": "Not authenticated. Please login first."}
     try:
-        result = _api.validate_2fa_code(code)
-        if result:
-            _api.trust_session()
+        # validate_2fa_code() internally calls trust_session() on success,
+        # so don't call it again — that wastes a round trip and can
+        # mutate session state mid-flight.
+        if _api.validate_2fa_code(code):
             return {"status": "ok"}
-        else:
-            return {"status": "error", "message": "Invalid verification code."}
+        return {"status": "error", "message": "Invalid verification code."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -127,50 +256,60 @@ def try_session_resume():
     if creds is None:
         return {"status": "needs_login"}
 
-    email, password = creds
+    email, password, use_international = creds
     try:
-        _log.info(f"[RESUME] Attempting session resume for {email}")
-        _api = PyiCloudService(
-            email, password,
-            cookie_directory=COOKIE_DIR,
-            china_mainland=_is_china_mainland(email),
-        )
-        _log.info(f"[RESUME] requires_2fa={_api.requires_2fa}")
-        _log.info(f"[RESUME] requires_2sa={_api.requires_2sa}")
-        _log.info(f"[RESUME] _requires_mfa={getattr(_api, '_requires_mfa', 'N/A')}")
-        _log.info(f"[RESUME] _auth_data={getattr(_api, '_auth_data', 'N/A')}")
-        _log.info(f"[RESUME] is_trusted_session={_api.is_trusted_session}")
-        _log.info(f"[RESUME] hsaChallengeRequired={_api.data.get('hsaChallengeRequired', 'N/A')}")
-        _log.info(f"[RESUME] hsaVersion={_api.data.get('dsInfo', {}).get('hsaVersion', 'N/A')}")
-        _log.info(f"[RESUME] _needs_2fa result={_needs_2fa(_api)}")
+        if use_international:
+            class _ResumeHybridChina(_HybridChinaPyiCloud):
+                _srp_authentication = _ResumeOnlyPyiCloud._srp_authentication
+            _api = _ResumeHybridChina(
+                email, password,
+                cookie_directory=COOKIE_DIR,
+                china_mainland=False,
+            )
+        else:
+            _api = _ResumeOnlyPyiCloud(
+                email, password,
+                cookie_directory=COOKIE_DIR,
+                china_mainland=_is_china_mainland(email),
+            )
         if _needs_2fa(_api):
             return {"status": "2fa_required"}
         return {"status": "ok"}
-    except Exception as e:
-        _log.info(f"[RESUME] Exception: {e}")
+    except Exception:
         _api = None
         return {"status": "needs_login"}
 
 
 def logout():
-    """Clear current session and optionally remove saved credentials."""
+    """Clear current session, saved credentials, and cookie/session files.
+
+    Without removing the cookie/session files, anyone with read access
+    to COOKIE_DIR could resume the session even after the user clicked
+    "log out" — the saved session token plus the trust token are
+    enough for pyicloud to silently re-authenticate.
+    """
     global _api
     _api = None
     delete_credentials()
+    try:
+        for entry in os.scandir(COOKIE_DIR):
+            if entry.is_file() and entry.name.endswith((".session", ".cookiejar")):
+                try:
+                    os.remove(entry.path)
+                except OSError:
+                    pass
+    except FileNotFoundError:
+        pass
     return {"status": "ok"}
 
 
 def get_auth_status():
     """Return current authentication state."""
     if _api is None:
-        _log.info("[STATUS] _api is None -> needs_login")
         return "needs_login"
     try:
-        result = _needs_2fa(_api)
-        _log.info(f"[STATUS] _needs_2fa={result}, _requires_mfa={getattr(_api, '_requires_mfa', 'N/A')}, _auth_data_bool={bool(getattr(_api, '_auth_data', None))}")
-        if result:
+        if _needs_2fa(_api):
             return "needs_2fa"
-    except Exception as e:
-        _log.info(f"[STATUS] Exception: {e}")
+    except Exception:
         return "needs_login"
     return "authenticated"

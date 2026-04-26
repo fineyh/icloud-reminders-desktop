@@ -27,10 +27,10 @@ function setupIpcHandlers() {
     return backendFetch('/api/auth/status');
   });
 
-  ipcMain.handle('auth:login', async (_event, email, password, remember) => {
+  ipcMain.handle('auth:login', async (_event, email, password, remember, useInternational) => {
     return backendFetch('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, remember }),
+      body: JSON.stringify({ email, password, remember, use_international: useInternational }),
     });
   });
 
@@ -39,6 +39,10 @@ function setupIpcHandlers() {
       method: 'POST',
       body: JSON.stringify({ code }),
     });
+  });
+
+  ipcMain.handle('auth:send-sms', async () => {
+    return backendFetch('/api/auth/2fa/send-sms', { method: 'POST' });
   });
 
   ipcMain.handle('auth:logout', async () => {

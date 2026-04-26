@@ -41,6 +41,10 @@
           <input type="checkbox" id="remember" checked>
           <label for="remember">记住我</label>
         </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="use-international">
+          <label for="use-international">使用国际端点（手机号账号被风控/503 时勾选）</label>
+        </div>
         <button type="submit" class="btn btn-primary" id="btn-login">登录</button>
         <div class="error-msg" id="login-error"></div>
       </form>
@@ -62,6 +66,8 @@
       </div>
       <button class="btn btn-primary" id="btn-verify">验证</button>
       <div class="error-msg" id="twofa-error"></div>
+      <button class="btn btn-text" id="btn-send-sms" style="margin-top: 12px;">收不到弹窗？发送短信验证码</button>
+      <div class="info-msg" id="twofa-info" style="margin-top: 8px; color: #666; font-size: 12px;"></div>
       <button class="btn btn-text" id="btn-back-login" style="margin-top: 12px;">返回登录</button>
     </section>
 

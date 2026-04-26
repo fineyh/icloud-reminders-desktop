@@ -9,7 +9,7 @@ from flask_cors import CORS
 from waitress import serve
 
 from config import FLASK_PORT
-from auth import login, validate_2fa, try_session_resume, logout, get_auth_status
+from auth import login, validate_2fa, try_session_resume, logout, get_auth_status, request_sms_code
 from reminders_api import reminders_bp
 
 app = Flask(__name__)
@@ -43,7 +43,12 @@ def auth_login():
     data = request.get_json()
     if not data or "email" not in data or "password" not in data:
         return jsonify({"status": "error", "message": "Email and password required."}), 400
-    result = login(data["email"], data["password"], data.get("remember", False))
+    result = login(
+        data["email"],
+        data["password"],
+        data.get("remember", False),
+        use_international=data.get("use_international", False),
+    )
     return jsonify(result)
 
 
@@ -54,6 +59,11 @@ def auth_2fa():
         return jsonify({"status": "error", "message": "Verification code required."}), 400
     result = validate_2fa(data["code"])
     return jsonify(result)
+
+
+@app.route("/api/auth/2fa/send-sms", methods=["POST"])
+def auth_send_sms():
+    return jsonify(request_sms_code())
 
 
 @app.route("/api/auth/logout", methods=["POST"])
